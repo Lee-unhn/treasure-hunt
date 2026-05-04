@@ -61,32 +61,13 @@
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbyeiwS5o8PKtQ3KYEwM7FZ3jOlYu7UTUFPLnmULHZHZr-qiPcUbkobLtHzdrqfospNxYA/exec';
 
-// 大螢幕用一個工作人員帳號讀取資料（建議在 Sheet 開一個 screen / staff 角色帳號）
-const SCREEN_USER = 'admin';      // ← 改成您的帳號
-const SCREEN_PASS = 'thehex2026'; // ← 改成您的密碼
-
-let token = null;
-async function login() {
-  const res = await fetch(API_URL, {
-    method: 'POST', headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ action: 'login', username: SCREEN_USER, password: SCREEN_PASS })
-  });
-  const d = await res.json();
-  if (d.ok) { token = d.token; return true; }
-  document.getElementById('winners').innerHTML = `<p class="text-center text-red-200 py-8">❌ 登入失敗：${d.error || ''}</p>`;
-  return false;
-}
-
+// 大螢幕只讀取統計與抽獎結果，不需要登入
 async function call(action, payload = {}) {
-  if (!token) await login();
-  if (!token) return { ok: false };
   const res = await fetch(API_URL, {
     method: 'POST', headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ action, token, ...payload })
+    body: JSON.stringify({ action, ...payload })
   });
-  const d = await res.json();
-  if (!d.ok && /token/i.test(d.error || '')) { token = null; await login(); return call(action, payload); }
-  return d;
+  return res.json();
 }
 
 function maskName(name) {

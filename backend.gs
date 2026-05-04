@@ -308,7 +308,7 @@ function actionLookup(body) {
 }
 
 function actionStats(body) {
-  authOf(body);
+  // 公開唯讀（大螢幕用），無需登入
   const players = getPlayersSheet();
   const data = players.getDataRange().getValues();
   let total = 0, t100 = 0, t200 = 0, completed3 = 0, completed7 = 0,
@@ -339,7 +339,7 @@ function actionStats(body) {
 }
 
 function actionLotteryLog(body) {
-  authOf(body);
+  // 公開唯讀（大螢幕用），無需登入；不回傳「抽獎人」等內部欄位
   const sheet = getLotteryLogSheet();
   const data = sheet.getDataRange().getValues();
   // 建立 uid → name 對照
@@ -355,7 +355,7 @@ function actionLotteryLog(body) {
     const uids = String(r[6] || '').split(',').map(s => s.trim()).filter(Boolean);
     const winners = uids.map(uid => ({ uid, name: uidToName[uid] || '?' }));
     rows.push({
-      round: r[0], at: r[1], by: r[2],
+      round: r[0], at: r[1],
       eligibleSnapshot: r[3], excludedWon: r[4], drewCount: r[5],
       winners
     });
