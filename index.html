@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#d97706" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="尋寶獵人" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<title>尋寶獵人</title>
+<script src="vendor/tailwind.min.js"></script>
+<script src="vendor/qrcode.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          treasure: {
+            50: "#fff8e6", 100: "#ffeec0", 200: "#ffe096", 300: "#ffcc66",
+            400: "#ffb14d", 500: "#f59e0b", 600: "#d97706", 700: "#b45309",
+            800: "#92400e", 900: "#78350f"
+          },
+          ink: "#1f1b16"
+        },
+        animation: {
+          'pop': 'pop 0.4s ease-out',
+          'float': 'float 3s ease-in-out infinite',
+          'sparkle': 'sparkle 2s ease-in-out infinite'
+        },
+        keyframes: {
+          pop: {
+            "0%": { transform: "scale(0.5)", opacity: "0" },
+            "70%": { transform: "scale(1.1)", opacity: "1" },
+            "100%": { transform: "scale(1)" }
+          },
+          float: {
+            "0%, 100%": { transform: "translateY(0)" },
+            "50%": { transform: "translateY(-6px)" }
+          },
+          sparkle: {
+            "0%, 100%": { transform: "scale(1) rotate(0deg)", opacity: "0.8" },
+            "50%": { transform: "scale(1.2) rotate(15deg)", opacity: "1" }
+          }
+        }
+      }
+    }
+  };
+</script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background:
+      radial-gradient(ellipse at top, #fff5d9 0%, transparent 50%),
+      radial-gradient(ellipse at bottom right, #ffe5cc 0%, transparent 50%),
+      linear-gradient(180deg, #fffaf0 0%, #fff3e0 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,1); }
+  .btn-treasure {
+    background: linear-gradient(135deg, #ffb14d, #d97706);
+    color: white; font-weight: 700; border-radius: 1rem;
+    box-shadow: 0 10px 30px -8px rgba(245,158,11,.45);
+    transition: all .2s;
+  }
+  .btn-treasure:hover { box-shadow: 0 12px 32px -8px rgba(245,158,11,.6); }
+  .btn-treasure:active { transform: scale(0.97); }
+  .btn-treasure:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<header class="sticky top-0 z-30 bg-white/85 backdrop-blur border-b border-treasure-100 shadow-sm">
+  <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-center">
+    <span class="font-black text-treasure-900 text-lg">🏴‍☠️ 尋寶獵人</span>
+  </div>
+</header>
+
+<main id="main" class="max-w-2xl mx-auto p-4 pb-24"></main>
+
+<!-- Question Modal -->
+<div id="question-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4">
+  <div class="bg-white rounded-3xl w-full max-w-md p-6 animate-pop">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-black text-lg text-treasure-900" id="modal-title">第 1 關</h3>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+    </div>
+    <p class="text-sm text-gray-600 mb-2">仔細觀察道具，回答以下問題：</p>
+    <p class="bg-treasure-50 rounded-2xl p-4 mb-3 font-semibold leading-relaxed" id="modal-question"></p>
+    <input id="modal-input" placeholder="請輸入答案" autocomplete="off"
+      class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-treasure-400" />
+    <p id="modal-hint" class="hidden mt-2 text-sm text-red-600">答錯囉，再仔細看看 👀</p>
+    <button id="modal-submit" class="btn-treasure w-full py-3.5 mt-4 text-base">提交答案</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-8 bg-ink/90 text-white text-base font-semibold px-6 py-3.5 rounded-full shadow-2xl z-50 animate-pop max-w-[90%] text-center"></div>
+
+<script>
+//========== 後端（只用於查詢自己的啟動狀態，唯讀）==========
+const API_URL = 'https://script.google.com/macros/s/AKfycbyeiwS5o8PKtQ3KYEwM7FZ3jOlYu7UTUFPLnmULHZHZr-qiPcUbkobLtHzdrqfospNxYA/exec';
+
+async function checkActivation(uid) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'playerCheck', uid })
+  });
+  const data = await res.json();
+  if (!data.ok && data.error) throw new Error(data.error);
+  return data;
+}
+
+//========== Constants ==========
+const STORAGE_KEY = 'treasure_hunt_player_v2';
+const TOTAL_STATIONS = 7;
+const BASIC_THRESHOLD = 3;
+const PREMIUM_BONUS_THRESHOLD = 7;
+
+const SEED_QUESTIONS = [
+  { name: '運河碼頭登記簿',         question: '請找到「運河碼頭登記簿」，答案是？',         answer: '(待填)' },
+  { name: '中國城最後一家店的收據', question: '請找到「中國城最後一家店的收據」，答案是？', answer: '(待填)' },
+  { name: '某人沒寄出的信',         question: '請找到「某人沒寄出的信」，答案是？',         answer: '(待填)' },
+  { name: '地下街廣播員的手稿',     question: '請找到「地下街廣播員的手稿」，答案是？',     answer: '(待填)' },
+  { name: '台南阿嬤的菜市仔袋',     question: '請找到「台南阿嬤的菜市仔袋」，答案是？',     answer: '(待填)' },
+  { name: '夜奇鴨的羽毛',           question: '請找到「夜奇鴨的羽毛」，答案是？',           answer: '(待填)' },
+  { name: '時間膠囊',               question: '請找到「時間膠囊」，答案是？',               answer: '(待填)' }
+];
+
+//========== Storage ==========
+function newUid() { return 'U-' + Date.now().toString(36).slice(-5) + '-' + Math.random().toString(36).slice(2, 6); }
+
+function loadDb() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) { try { return JSON.parse(saved); } catch (e) {} }
+  return {
+    users: [],
+    currentUid: null,
+    stations: SEED_QUESTIONS.map((q, i) => ({ sid: i + 1, name: q.name, question: q.question, answer: q.answer })),
+    scanLogs: []
+  };
+}
+function saveDb() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+let db = loadDb();
+
+//========== Logic ==========
+function normalize(text) {
+  if (text == null) return '';
+  return String(text)
+    .replace(/[！-～]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/[\s　]/g, '')
+    .toLowerCase();
+}
+
+function verifyAnswer(input, stationId) {
+  const uid = db.currentUid;
+  if (!uid) return { ok: false, reason: '尚未建立玩家' };
+  const user = db.users.find(u => u.uid === uid);
+  if (!user) return { ok: false, reason: '查無玩家' };
+  const station = db.stations.find(s => s.sid === stationId);
+  if (!station) return { ok: false, reason: '無此關卡' };
+  if (db.scanLogs.some(l => l.uid === uid && l.sid === stationId)) {
+    return { ok: false, reason: '此關已完成過', already: true };
+  }
+  if (normalize(input) !== normalize(station.answer)) {
+    return { ok: false, reason: '答案不正確' };
+  }
+  db.scanLogs.push({ uid, sid: stationId, timestamp: Date.now() });
+  saveDb();
+  return { ok: true, points: pointsOf(uid) };
+}
+
+//========== Helpers ==========
+function pointsOf(uid) { return db.scanLogs.filter(l => l.uid === uid).length; }
+function scannedSet(uid) { return new Set(db.scanLogs.filter(l => l.uid === uid).map(l => l.sid)); }
+function getCurrentUser() { return db.users.find(u => u.uid === db.currentUid) || null; }
+
+//========== Render ==========
+function render() {
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  main.appendChild(renderUserView());
+}
+
+function renderUserView() {
+  const wrap = document.createElement('div');
+  wrap.className = 'space-y-4';
+  const user = getCurrentUser();
+  if (!user) { wrap.appendChild(renderUserLogin()); return wrap; }
+  if (!user.tier) {
+    wrap.appendChild(renderUserProfile(user));
+    wrap.appendChild(renderUserTierSelect(user));
+    return wrap;
+  }
+  if (!user.isActivated) {
+    wrap.appendChild(renderUserProfile(user));
+    wrap.appendChild(renderUserShowQR(user));
+    return wrap;
+  }
+  wrap.appendChild(renderUserProfile(user));
+  wrap.appendChild(renderUserWelcome(user));
+  wrap.appendChild(renderUserPoints(user));
+  wrap.appendChild(renderUserMap(user));
+  wrap.appendChild(renderUserClaim(user));
+  return wrap;
+}
+
+function renderUserLogin() {
+  const wrap = document.createElement('div');
+  wrap.className = 'space-y-4';
+  wrap.innerHTML = `
+    <div class="text-center pt-6">
+      <div class="text-7xl mb-2 animate-float">🏴‍☠️</div>
+      <p class="text-xs text-treasure-700 uppercase tracking-[0.4em] font-bold">Treasure Hunt</p>
+      <h1 class="text-3xl font-black mt-1 text-treasure-900">尋寶獵人</h1>
+    </div>
+    <div class="glass rounded-3xl p-6 shadow space-y-4">
+      <div>
+        <label class="block text-sm font-bold mb-2">輸入您的名字</label>
+        <div class="flex gap-2">
+          <input id="login-name" placeholder="顯示名稱" class="flex-1 bg-white border-2 border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-treasure-400" />
+          <button id="login-btn" class="btn-treasure px-5">🎮 參加遊戲</button>
+        </div>
+      </div>
+      ${db.users.length > 0 ? `
+        <div>
+          <label class="block text-sm font-bold mb-2">或繼續您的遊戲</label>
+          <div class="space-y-1.5">
+            ${db.users.map(u => `
+              <button data-uid="${u.uid}" class="switch-user w-full text-left bg-white hover:bg-treasure-50 rounded-xl px-3 py-2 flex items-center gap-2 transition">
+                <span class="text-xl">👤</span>
+                <span class="flex-1 font-semibold truncate">${u.displayName}</span>
+                <span class="text-xs ${u.tier==='200' ? 'bg-yellow-300' : u.tier==='100' ? 'bg-gray-300' : 'bg-gray-100'} px-2 py-0.5 rounded-full font-bold">${u.tier ? '$'+u.tier : '未啟動'}</span>
+                <span class="text-xs text-gray-500">${pointsOf(u.uid)} 點</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+  setTimeout(() => {
+    const create = () => {
+      const name = wrap.querySelector('#login-name').value.trim();
+      if (!name) return showToast('請輸入名字');
+      const u = { uid: newUid(), displayName: name, tier: null, isActivated: false };
+      db.users.push(u);
+      db.currentUid = u.uid;
+      saveDb();
+      render();
+    };
+    wrap.querySelector('#login-btn').onclick = create;
+    wrap.querySelector('#login-name').addEventListener('keydown', e => { if (e.key === 'Enter') create(); });
+    wrap.querySelectorAll('.switch-user').forEach(btn => {
+      btn.onclick = () => {
+        db.currentUid = btn.dataset.uid;
+        saveDb(); render();
+      };
+    });
+  }, 0);
+  return wrap;
+}
+
+function renderUserProfile(user) {
+  const wrap = document.createElement('div');
+  wrap.className = 'glass rounded-3xl p-4 shadow flex items-center gap-3';
+  const tierBadge = user.isActivated
+    ? `<span class="text-[11px] ${user.tier==='200' ? 'bg-gradient-to-r from-yellow-300 to-amber-400' : 'bg-gradient-to-r from-gray-300 to-gray-400'} px-2.5 py-0.5 rounded-full font-bold">$${user.tier} 卡</span>`
+    : `<span class="text-[11px] bg-gray-200 px-2.5 py-0.5 rounded-full font-semibold">${user.tier ? '待啟動' : '未選'}</span>`;
+  wrap.innerHTML = `
+    <div class="w-12 h-12 rounded-full bg-treasure-100 flex items-center justify-center text-2xl ring-2 ring-treasure-200">👤</div>
+    <div class="flex-1 min-w-0">
+      <p class="text-[10px] text-gray-500 uppercase tracking-widest">冒險者</p>
+      <p class="font-bold truncate">${user.displayName}</p>
+      <p class="text-[10px] font-mono text-gray-400 truncate">${user.uid}</p>
+    </div>
+    <div class="flex flex-col items-end gap-1">
+      ${tierBadge}
+      <button id="logout" class="text-[10px] text-gray-400 hover:text-gray-600">登出</button>
+    </div>
+  `;
+  setTimeout(() => {
+    wrap.querySelector('#logout').onclick = () => { db.currentUid = null; saveDb(); render(); };
+  }, 0);
+  return wrap;
+}
+
+function renderUserTierSelect(user) {
+  const wrap = document.createElement('div');
+  wrap.className = 'glass rounded-3xl p-6 shadow space-y-4 text-center';
+  wrap.innerHTML = `
+    <div class="text-5xl mb-2">🎮</div>
+    <h2 class="text-xl font-black text-treasure-900">選擇參加方案</h2>
+    <p class="text-sm text-gray-600">挑選後出示 QR 給服務員</p>
+    <div class="grid grid-cols-1 gap-3 pt-2">
+      <button id="pick-100" class="bg-gradient-to-br from-gray-600 to-gray-800 text-white rounded-2xl py-5 font-bold text-left px-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-2xl">$100 卡</div>
+            <div class="text-xs opacity-90 mt-1">完成 3 關 → 即時抽獎</div>
+          </div>
+          <div class="text-3xl opacity-70">→</div>
+        </div>
+      </button>
+      <button id="pick-200" class="bg-gradient-to-br from-yellow-400 to-amber-500 text-black rounded-2xl py-5 font-bold text-left px-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-2xl">$200 卡</div>
+            <div class="text-xs mt-1 opacity-80">完成 7 關 → 入大獎池抽行李箱</div>
+          </div>
+          <div class="text-3xl opacity-70">→</div>
+        </div>
+      </button>
+    </div>
+    <p class="text-[11px] text-gray-400 pt-2">請依實際付費金額選擇；服務員會在收費時確認</p>
+  `;
+  setTimeout(() => {
+    const pick = (tier) => { user.tier = tier; saveDb(); render(); };
+    wrap.querySelector('#pick-100').onclick = () => pick('100');
+    wrap.querySelector('#pick-200').onclick = () => pick('200');
+  }, 0);
+  return wrap;
+}
+
+function renderUserShowQR(user) {
+  const payload = JSON.stringify({ uid: user.uid, t: parseInt(user.tier, 10) });
+  const wrap = document.createElement('div');
+  wrap.className = 'glass rounded-3xl p-6 shadow text-center space-y-3';
+  wrap.innerHTML = `
+    <div class="text-4xl">📱</div>
+    <h2 class="text-lg font-black text-treasure-900">請出示此 QR 給服務員</h2>
+    <p class="text-sm text-gray-600">服務員確認收費後掃描</p>
+    <div class="bg-white rounded-2xl p-4 inline-block border-2 border-treasure-200 shadow-sm">
+      <div id="register-qr" class="mx-auto"></div>
+    </div>
+    <div class="space-y-1">
+      <p class="text-base font-bold text-treasure-900">${user.displayName}</p>
+      <p class="text-xs text-gray-500">想付的方案：<span class="font-bold text-treasure-700">$${user.tier} 卡</span></p>
+      <p class="text-[10px] font-mono text-gray-400 break-all">${user.uid}</p>
+    </div>
+    <hr class="border-treasure-100">
+    <div id="status-box" class="rounded-xl p-3 bg-blue-50 border border-blue-200 text-sm text-blue-900">
+      ⏳ 等候服務員啟動中…
+      <p class="text-[11px] text-blue-700 mt-1">每 8 秒自動檢查；服務員啟動後立即進入遊戲</p>
+    </div>
+    <button id="check-now-btn" class="btn-treasure w-full py-3 text-sm">🔄 立即檢查</button>
+    <button id="change-tier" class="text-xs text-gray-400 hover:text-gray-600">換選其他卡別</button>
+  `;
+  setTimeout(() => {
+    const el = wrap.querySelector('#register-qr');
+    el.innerHTML = '';
+    new QRCode(el, { text: payload, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+
+    const status = wrap.querySelector('#status-box');
+    let pollTimer = null;
+    let stopped = false;
+
+    const tryActivate = async (manual) => {
+      // 防呆：避免覆蓋已切換到別頁面的玩家
+      const cur = getCurrentUser();
+      if (!cur || cur.uid !== user.uid || cur.isActivated || stopped) return;
+      try {
+        const res = await checkActivation(user.uid);
+        if (res.activated) {
+          stopped = true;
+          if (pollTimer) clearInterval(pollTimer);
+          // 以 Sheet 紀錄為準（服務員可能改了卡別）
+          user.tier = res.tier || user.tier;
+          if (res.name) user.displayName = res.name;
+          user.isActivated = true;
+          saveDb();
+          showToast('🏴‍☠️ 寶藏獵人歡迎參賽！');
+          render();
+        } else if (manual) {
+          status.className = 'rounded-xl p-3 bg-amber-50 border border-amber-300 text-sm text-amber-900';
+          status.innerHTML = '⚠️ 尚未啟動<p class="text-[11px] text-amber-700 mt-1">請告訴服務員掃您的 QR，或稍候再試</p>';
+        }
+      } catch (e) {
+        if (manual) {
+          status.className = 'rounded-xl p-3 bg-red-50 border border-red-300 text-sm text-red-900';
+          status.innerHTML = '❌ 連線失敗<p class="text-[11px] text-red-700 mt-1">' + (e.message || e) + '</p>';
+        }
+      }
+    };
+
+    // 進畫面立即檢查一次（如果服務員已先啟動就會直接進遊戲）
+    tryActivate(false);
+    // 每 8 秒自動檢查
+    pollTimer = setInterval(() => tryActivate(false), 8000);
+
+    wrap.querySelector('#check-now-btn').onclick = () => tryActivate(true);
+    wrap.querySelector('#change-tier').onclick = () => {
+      stopped = true;
+      if (pollTimer) clearInterval(pollTimer);
+      user.tier = null; saveDb(); render();
+    };
+  }, 0);
+  return wrap;
+}
+
+function renderUserWelcome(user) {
+  const wrap = document.createElement('div');
+  wrap.className = 'rounded-3xl p-5 shadow text-white relative overflow-hidden';
+  wrap.style.background = user.tier === '200'
+    ? 'linear-gradient(135deg, #fbbf24, #d97706 60%, #78350f)'
+    : 'linear-gradient(135deg, #6b7280, #374151 70%, #111827)';
+  wrap.innerHTML = `
+    <div class="text-3xl mb-1">🏴‍☠️</div>
+    <h3 class="text-xl font-black">寶藏獵人歡迎參賽！</h3>
+    <p class="text-sm mt-1 opacity-95">您是 <strong>$${user.tier} 卡</strong>${user.tier === '200' ? '，可玩全 7 關' : '，完成 3 關即可抽獎'}</p>
+    <button id="show-my-qr" class="mt-3 bg-white/25 hover:bg-white/40 backdrop-blur rounded-full px-3 py-1 text-xs font-bold transition">📱 再叫出我的 QR</button>
+  `;
+  setTimeout(() => {
+    wrap.querySelector('#show-my-qr').onclick = () => {
+      user.isActivated = false; saveDb(); render();
+    };
+  }, 0);
+  return wrap;
+}
+
+function renderUserPoints(user) {
+  const points = pointsOf(user.uid);
+  const max = TOTAL_STATIONS;
+  const pct = Math.min(100, points / max * 100);
+  const wrap = document.createElement('div');
+  wrap.className = 'rounded-3xl p-6 shadow text-white relative overflow-hidden';
+  wrap.style.background = 'linear-gradient(135deg, #ffb14d, #d97706 60%, #92400e)';
+  let msg;
+  if (points >= PREMIUM_BONUS_THRESHOLD) {
+    msg = user.tier === '200'
+      ? '🏆 完成全部 7 關！已入大獎池，等候下一輪抽獎'
+      : '🎉 完成全部 7 關！可去櫃台抽 $100 獎';
+  } else if (points >= BASIC_THRESHOLD) {
+    msg = user.tier === '200'
+      ? `✅ 達 ${BASIC_THRESHOLD} 關可去抽 $100 獎；再 ${PREMIUM_BONUS_THRESHOLD - points} 關進大獎池`
+      : `🎉 達標！可去櫃台抽 $100 獎`;
+  } else {
+    msg = `再完成 ${BASIC_THRESHOLD - points} 關即可去櫃台抽獎`;
+  }
+  wrap.innerHTML = `
+    <div class="absolute -top-6 -right-6 text-[9rem] opacity-20 select-none">💰</div>
+    <p class="text-xs uppercase tracking-widest opacity-80 relative">目前點數</p>
+    <p class="leading-none mt-1 relative">
+      <span class="text-7xl font-black drop-shadow">${points}</span>
+      <span class="text-3xl font-bold opacity-70"> / ${max}</span>
+    </p>
+    <div class="mt-4 h-2 bg-white/30 rounded-full overflow-hidden relative">
+      <div class="h-full bg-white rounded-full transition-all duration-700" style="width:${pct}%"></div>
+    </div>
+    <p class="mt-3 text-sm opacity-95 relative">${msg}</p>
+  `;
+  return wrap;
+}
+
+function renderUserMap(user) {
+  const wrap = document.createElement('div');
+  wrap.className = 'space-y-3';
+  const set = scannedSet(user.uid);
+  wrap.innerHTML = `
+    <div class="flex items-center px-1">
+      <h2 class="text-sm font-extrabold text-treasure-900 tracking-wider">🗺️ 寶藏地圖</h2>
+      <p class="ml-auto text-[11px] text-gray-500">完成 ${set.size} / ${TOTAL_STATIONS} 關</p>
+    </div>
+    <div class="grid grid-cols-3 sm:grid-cols-4 gap-3">
+      ${Array.from({length: TOTAL_STATIONS}, (_, i) => i + 1).map(sid => {
+        const opened = set.has(sid);
+        return `
+          <button data-sid="${sid}" class="station-btn relative aspect-square rounded-2xl flex flex-col items-center justify-center transition-all duration-300 ${
+            opened
+              ? 'bg-gradient-to-br from-treasure-300 via-treasure-400 to-treasure-600 shadow-lg scale-100 animate-pop'
+              : 'bg-gradient-to-br from-gray-100 to-gray-200 scale-95 hover:scale-100 active:scale-90'
+          }">
+            <div class="text-4xl ${opened ? 'animate-float' : 'grayscale opacity-30'}">${opened ? '💎' : '📦'}</div>
+            <div class="text-xs font-extrabold mt-1 ${opened ? 'text-white drop-shadow' : 'text-gray-400'}">#${sid}</div>
+            ${opened ? '<div class="absolute -top-1 -right-1 text-yellow-200 text-lg animate-sparkle">✨</div>' : ''}
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `;
+  setTimeout(() => {
+    wrap.querySelectorAll('.station-btn').forEach(btn => {
+      btn.onclick = () => openQuestion(parseInt(btn.dataset.sid, 10));
+    });
+  }, 0);
+  return wrap;
+}
+
+function renderUserClaim(user) {
+  const points = pointsOf(user.uid);
+  if (points < BASIC_THRESHOLD) return document.createElement('div');
+
+  const labels = ['🎁 基礎獎品'];
+  if (user.tier === '200' && points >= PREMIUM_BONUS_THRESHOLD) {
+    labels.push('✨ 限量贈品');
+    labels.push('🧳 行李箱大獎抽獎池');
+  }
+
+  const payload = JSON.stringify({ v: 1, uid: user.uid, p: points });
+  const wrap = document.createElement('div');
+  wrap.className = 'glass rounded-3xl p-5 shadow';
+  wrap.innerHTML = `
+    <h3 class="font-bold text-treasure-900 mb-1">🎟 領獎憑證</h3>
+    <p class="text-[11px] text-gray-500 mb-3">至兌獎處出示此 QR Code，工作人員掃碼即可核對身分發獎</p>
+    <div class="bg-white rounded-2xl p-4 text-center border-2 border-treasure-200">
+      <div id="claim-qr" class="mx-auto inline-block"></div>
+      <p class="font-bold text-base text-treasure-900 mt-2">${user.displayName}</p>
+      <p class="text-xs text-treasure-700">$${user.tier} 卡 · 已完成 ${points} / ${TOTAL_STATIONS} 關</p>
+      <p class="font-mono text-[10px] text-gray-400 mt-1 break-all">${user.uid}</p>
+    </div>
+    <div class="mt-3">
+      <p class="text-xs font-bold text-gray-600 mb-1.5">可領取項目（最終以服務員確認為準）</p>
+      <div class="space-y-1.5">
+        ${labels.map(l => `
+          <div class="bg-yellow-50 border border-yellow-300 rounded-xl px-3 py-2 text-sm font-semibold">${l}</div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  setTimeout(() => {
+    const el = wrap.querySelector('#claim-qr');
+    el.innerHTML = '';
+    new QRCode(el, { text: payload, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+  }, 0);
+  return wrap;
+}
+
+//========== Modal ==========
+let modalSid = null;
+
+function openQuestion(sid) {
+  const user = getCurrentUser();
+  if (!user) { showToast('請先建立玩家'); return; }
+  if (scannedSet(user.uid).has(sid)) { showToast(`第 ${sid} 關已經完成過囉`); return; }
+  const station = db.stations.find(s => s.sid === sid);
+  modalSid = sid;
+  document.getElementById('modal-title').innerText = `第 ${sid} 關 · ${station.name || ''}`;
+  document.getElementById('modal-question').innerText = station.question;
+  document.getElementById('modal-input').value = '';
+  document.getElementById('modal-hint').classList.add('hidden');
+  document.getElementById('question-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('modal-input').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('question-modal').classList.add('hidden');
+  modalSid = null;
+}
+
+function submitAnswer() {
+  if (!modalSid) return;
+  const input = document.getElementById('modal-input').value;
+  const result = verifyAnswer(input, modalSid);
+  if (!result.ok) {
+    if (result.already) { showToast(result.reason); closeModal(); }
+    else {
+      document.getElementById('modal-hint').classList.remove('hidden');
+      if ('vibrate' in navigator) navigator.vibrate(50);
+    }
+    return;
+  }
+  const sid = modalSid;
+  closeModal();
+  showToast(`🎉 第 ${sid} 關集點成功！(${result.points}/${TOTAL_STATIONS})`);
+  if ('vibrate' in navigator) navigator.vibrate(200);
+  render();
+}
+
+document.getElementById('modal-submit').onclick = submitAnswer;
+document.getElementById('modal-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitAnswer();
+});
+
+//========== Toast ==========
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.innerText = msg;
+  el.classList.remove('hidden');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(() => el.classList.add('hidden'), 2500);
+}
+
+//========== Deep-link: 站點 QR 掃進來 ==========
+(function handleScanLink() {
+  const params = new URLSearchParams(location.search);
+  const sid = parseInt(params.get('sid') || '0', 10);
+  if (!sid) return;
+  const station = db.stations.find(s => s.sid === sid);
+  history.replaceState({}, '', location.pathname);
+  if (!station) { setTimeout(() => showToast('無此關卡'), 300); return; }
+  setTimeout(() => {
+    const user = getCurrentUser();
+    if (!user) showToast('請先建立玩家');
+    else if (!user.tier) showToast('請先選擇卡別');
+    else openQuestion(sid);
+  }, 300);
+})();
+
+//========== Init ==========
+render();
+
+//========== PWA: Service Worker ==========
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW reg failed:', err));
+  });
+}
+</script>
+</body>
+</html>

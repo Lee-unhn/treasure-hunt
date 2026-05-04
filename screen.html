@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>尋寶獵人 — 大螢幕</title>
+<script src="vendor/tailwind.min.js"></script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: linear-gradient(135deg, #78350f 0%, #d97706 50%, #fbbf24 100%);
+    min-height: 100vh;
+    color: white;
+    overflow: hidden;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+  @keyframes sparkle {
+    0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.7; }
+    50% { transform: scale(1.3) rotate(20deg); opacity: 1; }
+  }
+  @keyframes slideIn {
+    from { transform: translateX(-100px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  .float { animation: float 3s ease-in-out infinite; }
+  .sparkle { animation: sparkle 2s ease-in-out infinite; }
+  .winner-row { animation: slideIn 0.6s cubic-bezier(.34, 1.56, .64, 1) backwards; }
+</style>
+</head>
+<body class="p-8">
+
+<div class="max-w-6xl mx-auto">
+  <!-- Header -->
+  <div class="text-center mb-8">
+    <div class="text-8xl mb-2 float inline-block">🏴‍☠️</div>
+    <h1 class="text-6xl font-black drop-shadow-lg">尋寶獵人 大獎抽籤</h1>
+    <p class="text-xl mt-2 opacity-90">Treasure Hunt Grand Prize</p>
+  </div>
+
+  <!-- Stats row -->
+  <div id="stats" class="grid grid-cols-4 gap-4 mb-8"></div>
+
+  <!-- Latest draw winners -->
+  <div id="latest" class="bg-white/15 backdrop-blur-md rounded-3xl p-8 shadow-2xl border-2 border-white/30">
+    <div id="latest-header" class="flex items-center justify-between mb-6">
+      <div>
+        <p class="text-sm opacity-80 uppercase tracking-widest">本輪中獎名單</p>
+        <h2 id="round-title" class="text-4xl font-black">等候開獎…</h2>
+      </div>
+      <div id="round-time" class="text-right text-sm opacity-80"></div>
+    </div>
+    <div id="winners" class="space-y-3">
+      <p class="text-center opacity-60 py-12 text-2xl">尚未開獎，請主辦方在後台執行</p>
+    </div>
+  </div>
+
+  <!-- All-time hall of fame -->
+  <div class="mt-6 text-center text-sm opacity-70">
+    <p>本頁每 10 秒自動刷新 · 最近一次更新：<span id="updated-at">…</span></p>
+  </div>
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbyeiwS5o8PKtQ3KYEwM7FZ3jOlYu7UTUFPLnmULHZHZr-qiPcUbkobLtHzdrqfospNxYA/exec';
+const VIEWER_TOKEN = 'screen-viewer'; // 大螢幕只讀，使用獨立識別
+
+// 大螢幕需要一個只讀帳號才能呼叫 stats / lotteryLog API。
+// 請在 Sheet「工作人員」分頁加一筆：
+//   帳號=screen, 密碼=任意, 角色=staff, 名稱=大螢幕
+// 或直接用主辦方/服務員帳密填到下方 SCREEN_USER / SCREEN_PASS。
+
+const SCREEN_USER = 'admin';      // ← 改成您的帳號
+const SCREEN_PASS = 'change-me';  // ← 改成您的密碼
+
+let token = null;
+async function login() {
+  const res = await fetch(API_URL, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'login', username: SCREEN_USER, password: SCREEN_PASS })
+  });
+  const d = await res.json();
+  if (d.ok) { token = d.token; return true; }
+  document.getElementById('winners').innerHTML = `<p class="text-center text-red-200 py-8">❌ 登入失敗：${d.error}</p>`;
+  return false;
+}
+
+async function call(action, payload = {}) {
+  if (!token) await login();
+  const body = { action, token, ...payload };
+  const res = await fetch(API_URL, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(body)
+  });
+  const d = await res.json();
+  if (!d.ok && d.error === 'token expired, please re-login') {
+    token = null; await login(); return call(action, payload);
+  }
+  return d;
+}
+
+async function refresh() {
+  try {
+    const stats = await call('stats');
+    if (stats.ok) {
+      document.getElementById('stats').innerHTML = `
+        ${[
+          ['🎫 已啟動', stats.total],
+          ['💰 完成 3 關', stats.completed3],
+          ['🏆 完成 7 關', stats.completed7],
+          ['🧳 大獎中籤', stats.won200]
+        ].map(([k, v]) => `
+          <div class="bg-white/10 backdrop-blur rounded-2xl p-5 text-center border border-white/20">
+            <p class="text-sm opacity-80">${k}</p>
+            <p class="text-5xl font-black mt-1 drop-shadow">${v}</p>
+          </div>
+        `).join('')}
+      `;
+    }
+
+    const log = await call('lotteryLog');
+    if (log.ok && log.rows.length > 0) {
+      const last = log.rows[log.rows.length - 1];
+      document.getElementById('round-title').innerText = '🏆 ' + last.round;
+      document.getElementById('round-time').innerHTML = `
+        <p class="text-2xl font-bold">${new Date(last.at).toLocaleString('zh-TW', { hour12: false })}</p>
+        <p class="opacity-70">本輪抽出 ${last.drewCount} 位</p>
+      `;
+      // 中獎 UIDs 是字串，需要展開
+      const uids = String(last.winnerUids || '').split(',').map(s => s.trim()).filter(Boolean);
+      document.getElementById('winners').innerHTML = uids.map((uid, i) => `
+        <div class="winner-row bg-white/95 text-gray-900 rounded-2xl px-6 py-4 flex items-center gap-4 shadow-xl"
+             style="animation-delay: ${i * 80}ms">
+          <span class="text-4xl font-black w-16 text-orange-600">#${i + 1}</span>
+          <span class="text-5xl sparkle">🎉</span>
+          <span class="flex-1 text-2xl font-mono">${uid}</span>
+          <span class="text-3xl">🏆</span>
+        </div>
+      `).join('');
+    }
+    document.getElementById('updated-at').innerText = new Date().toLocaleTimeString('zh-TW');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

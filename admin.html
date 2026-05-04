@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#1f1b16" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="尋寶後台" />
+<meta name="robots" content="noindex,nofollow" />
+<link rel="icon" href="icons/icon-192.png" />
+<title>尋寶獵人 後台</title>
+<script src="vendor/tailwind.min.js"></script>
+<script src="vendor/qrcode.min.js"></script>
+<script src="vendor/html5-qrcode.min.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          treasure: {
+            50: "#fff8e6", 100: "#ffeec0", 200: "#ffe096", 300: "#ffcc66",
+            400: "#ffb14d", 500: "#f59e0b", 600: "#d97706", 700: "#b45309",
+            800: "#92400e", 900: "#78350f"
+          },
+          ink: "#1f1b16"
+        },
+        animation: { 'pop': 'pop 0.4s ease-out' },
+        keyframes: {
+          pop: {
+            "0%": { transform: "scale(0.5)", opacity: "0" },
+            "70%": { transform: "scale(1.1)", opacity: "1" },
+            "100%": { transform: "scale(1)" }
+          }
+        }
+      }
+    }
+  };
+</script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: linear-gradient(180deg, #f3f4f6 0%, #e5e7eb 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .glass { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,1); }
+  .btn-treasure {
+    background: linear-gradient(135deg, #ffb14d, #d97706);
+    color: white; font-weight: 700; border-radius: 1rem;
+    box-shadow: 0 10px 30px -8px rgba(245,158,11,.45);
+    transition: all .2s;
+  }
+  .btn-treasure:hover { box-shadow: 0 12px 32px -8px rgba(245,158,11,.6); }
+  .btn-treasure:active { transform: scale(0.97); }
+  .btn-treasure:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<header class="sticky top-0 z-30 bg-ink text-white shadow-md">
+  <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+    <span class="font-black text-lg">🛠 尋寶獵人 後台</span>
+    <span id="header-user" class="text-xs opacity-70"></span>
+  </div>
+</header>
+
+<main id="main" class="max-w-2xl mx-auto p-4 pb-24"></main>
+
+<!-- Scan Modal -->
+<div id="scan-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl w-full max-w-md p-5 animate-pop">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-black text-lg text-treasure-900">📷 掃描 QR Code</h3>
+      <button id="scan-close" class="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+    </div>
+    <div id="scan-reader" class="rounded-xl overflow-hidden bg-black w-full" style="min-height: 280px;"></div>
+    <p id="scan-hint" class="text-center text-xs text-gray-500 mt-3">請將 QR Code 對準鏡頭</p>
+    <div class="mt-3">
+      <select id="scan-camera-select" class="hidden w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-2 text-sm"></select>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-8 bg-ink/90 text-white text-base font-semibold px-6 py-3.5 rounded-full shadow-2xl z-50 animate-pop max-w-[90%] text-center"></div>
+
+<script>
+//========== 後端 (Apps Script Web App) ==========
+const API_URL = 'https://script.google.com/macros/s/AKfycbyeiwS5o8PKtQ3KYEwM7FZ3jOlYu7UTUFPLnmULHZHZr-qiPcUbkobLtHzdrqfospNxYA/exec';
+
+// 玩家頁的 URL（站點 QR 用）
+const PLAYER_URL = location.origin + location.pathname.replace(/admin\.html(\?.*)?$/, '');
+
+async function callApi(action, payload = {}) {
+  const body = { action, ...payload };
+  const token = sessionStorage.getItem('admin_token');
+  if (token) body.token = token;
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || data.message || '請求失敗');
+  return data;
+}
+
+//========== 站點 QR 設定（離線本地） ==========
+const STATION_KEY = 'treasure_hunt_admin_stations_v2';
+const SEED_QUESTIONS = [
+  { name: '運河碼頭登記簿',         question: '請找到「運河碼頭登記簿」，答案是？',         answer: '(待填)' },
+  { name: '中國城最後一家店的收據', question: '請找到「中國城最後一家店的收據」，答案是？', answer: '(待填)' },
+  { name: '某人沒寄出的信',         question: '請找到「某人沒寄出的信」，答案是？',         answer: '(待填)' },
+  { name: '地下街廣播員的手稿',     question: '請找到「地下街廣播員的手稿」，答案是？',     answer: '(待填)' },
+  { name: '台南阿嬤的菜市仔袋',     question: '請找到「台南阿嬤的菜市仔袋」，答案是？',     answer: '(待填)' },
+  { name: '夜奇鴨的羽毛',           question: '請找到「夜奇鴨的羽毛」，答案是？',           answer: '(待填)' },
+  { name: '時間膠囊',               question: '請找到「時間膠囊」，答案是？',               answer: '(待填)' }
+];
+function loadStations() {
+  const saved = localStorage.getItem(STATION_KEY);
+  if (saved) { try { return JSON.parse(saved); } catch (e) {} }
+  return SEED_QUESTIONS.map((q, i) => ({ sid: i + 1, name: q.name, question: q.question, answer: q.answer }));
+}
+function saveStations(arr) { localStorage.setItem(STATION_KEY, JSON.stringify(arr)); }
+let stations = loadStations();
+
+function generateStationQR(stationId) {
+  return `${PLAYER_URL}?sid=${stationId}`;
+}
+
+//========== Admin Session ==========
+function getAdminSession() {
+  const raw = sessionStorage.getItem('admin_session');
+  return raw ? JSON.parse(raw) : null;
+}
+function setAdminSession(role, name) {
+  sessionStorage.setItem('admin_session', JSON.stringify({ role, name }));
+}
+function clearAdminSession() {
+  sessionStorage.removeItem('admin_token');
+  sessionStorage.removeItem('admin_session');
+}
+
+let adminTab = 'activation';
+
+//========== Render ==========
+function render() {
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  const session = getAdminSession();
+  if (!session) {
+    document.getElementById('header-user').innerText = '未登入';
+    main.appendChild(renderAdminLogin());
+    return;
+  }
+  document.getElementById('header-user').innerHTML = `${session.role === 'organizer' ? '👑' : '👨‍💼'} ${session.name} <button id="logout-admin" class="ml-2 underline opacity-80 hover:opacity-100">登出</button>`;
+  document.getElementById('logout-admin').onclick = () => { clearAdminSession(); render(); };
+
+  const wrap = document.createElement('div');
+  wrap.className = 'space-y-4';
+
+  // Tabs
+  const tabsBar = document.createElement('div');
+  tabsBar.className = 'glass rounded-2xl p-1.5 flex gap-1 text-sm overflow-x-auto';
+  const tabs = [
+    ['activation', '🎫 啟動'],
+    ['lottery100', '🎁 $100抽獎'],
+    ['verify',     '✅ 領獎驗證'],
+  ];
+  if (session.role === 'organizer') tabs.push(['draw200', '🎲 抽大獎']);
+  tabs.push(['stations', '📷 站點QR']);
+  tabs.push(['stats',    '📊 統計']);
+
+  tabs.forEach(([t, label]) => {
+    const active = adminTab === t;
+    const b = document.createElement('button');
+    b.className = `flex-1 px-3 py-2 rounded-xl font-bold whitespace-nowrap transition ${active ? 'bg-ink text-white' : 'text-treasure-800 hover:bg-treasure-50'}`;
+    b.innerText = label;
+    b.onclick = () => { adminTab = t; render(); };
+    tabsBar.appendChild(b);
+  });
+  wrap.appendChild(tabsBar);
+
+  if (adminTab === 'activation')      wrap.appendChild(renderAdminActivation(session));
+  else if (adminTab === 'lottery100') wrap.appendChild(renderAdminLottery100(session));
+  else if (adminTab === 'verify')     wrap.appendChild(renderAdminVerify(session));
+  else if (adminTab === 'draw200')    wrap.appendChild(renderAdminDraw200(session));
+  else if (adminTab === 'stations')   wrap.appendChild(renderAdminStations(session));
+  else if (adminTab === 'stats')      wrap.appendChild(renderAdminStats());
+  else { adminTab = 'activation'; wrap.appendChild(renderAdminActivation(session)); }
+
+  main.appendChild(wrap);
+}
+
+function renderAdminLogin() {
+  const wrap = document.createElement('div');
+  wrap.className = 'space-y-4';
+  wrap.innerHTML = `
+    <div class="text-center pt-8">
+      <div class="text-6xl mb-3">🛠</div>
+      <h1 class="text-2xl font-black text-treasure-900">後台登入</h1>
+      <p class="text-xs text-gray-500 mt-1">服務員 / 主辦方專用</p>
+    </div>
+    <div class="glass rounded-3xl p-6 shadow space-y-3">
+      <div>
+        <label class="block text-xs font-bold mb-1 text-gray-700">帳號</label>
+        <input id="admin-u" placeholder="如 admin / s01" autocomplete="username"
+          class="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-3 focus:outline-none focus:border-treasure-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-bold mb-1 text-gray-700">密碼</label>
+        <input id="admin-p" type="password" placeholder="••••••••" autocomplete="current-password"
+          class="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-3 focus:outline-none focus:border-treasure-400" />
+      </div>
+      <button id="admin-login-btn" class="btn-treasure w-full py-3.5">登入</button>
+      <p id="admin-login-err" class="hidden text-xs text-red-600 text-center bg-red-50 rounded-xl py-2"></p>
+    </div>
+    <p class="text-center text-[11px] text-gray-400">本頁僅工作人員可進入；玩家請至 <a href="./" class="underline">玩家頁</a></p>
+  `;
+  setTimeout(() => {
+    const submit = async () => {
+      const username = wrap.querySelector('#admin-u').value.trim();
+      const password = wrap.querySelector('#admin-p').value;
+      const err = wrap.querySelector('#admin-login-err');
+      err.classList.add('hidden');
+      if (!username || !password) { err.innerText = '請輸入帳號與密碼'; err.classList.remove('hidden'); return; }
+      const btn = wrap.querySelector('#admin-login-btn');
+      btn.disabled = true; btn.innerText = '登入中…';
+      try {
+        const res = await callApi('login', { username, password });
+        sessionStorage.setItem('admin_token', res.token);
+        setAdminSession(res.role, res.name);
+        render();
+      } catch (e) {
+        err.innerText = '❌ ' + e.message;
+        err.classList.remove('hidden');
+        btn.disabled = false; btn.innerText = '登入';
+      }
+    };
+    wrap.querySelector('#admin-login-btn').onclick = submit;
+    wrap.querySelector('#admin-p').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+  }, 0);
+  return wrap;
+}
+
+//========== 共用：QR 解析 ==========
+function parseScannedQR(raw) {
+  raw = String(raw || '').trim();
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && obj.uid) return obj;
+  } catch (e) {}
+  if (/^U-/.test(raw)) return { uid: raw };
+  return null;
+}
+
+//========== 啟動 ==========
+function renderAdminActivation(session) {
+  const wrap = document.createElement('div');
+  wrap.className = 'glass rounded-3xl p-5 shadow space-y-4';
+  wrap.innerHTML = `
+    <div>
+      <h2 class="text-xl font-black text-treasure-900">🎫 啟動客人</h2>
+      <p class="text-sm text-gray-600 mt-1">收費後掃客人手機 QR → 確認姓名與卡別</p>
+    </div>
+    <div class="flex gap-2">
+      <input id="act-uid" placeholder="UID（可手動輸入或掃描）"
+        class="flex-1 min-w-0 bg-white border-2 border-gray-200 rounded-xl px-3 py-2 font-mono text-xs focus:outline-none focus:border-treasure-400" />
+      <button id="act-scan" type="button"
+        class="shrink-0 bg-treasure-50 hover:bg-treasure-100 border-2 border-treasure-200 text-treasure-800 rounded-xl px-3 py-2 text-sm font-bold">📷</button>
+    </div>
+    <input id="act-name" placeholder="客人姓名"
+      class="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-treasure-400" />
+    <div class="grid grid-cols-2 gap-3">
+      <button id="act-100" class="bg-gradient-to-br from-gray-600 to-gray-800 text-white rounded-2xl py-4 font-bold">$100 啟動</button>
+      <button id="act-200" class="bg-gradient-to-br from-yellow-400 to-amber-500 text-black rounded-2xl py-4 font-bold">$200 啟動</button>
+    </div>
+    <p id="act-result" class="hidden text-sm text-center font-bold"></p>
+  `;
+  setTimeout(() => {
+    const uidInput = wrap.querySelector('#act-uid');
+    const nameInput = wrap.querySelector('#act-name');
+    const result = wrap.querySelector('#act-result');
+
+    wrap.querySelector('#act-scan').onclick = () => openScanner((text) => {
+      const parsed = parseScannedQR(text);
+      if (!parsed) return showToast('❌ QR 內容無法解析');
+      uidInput.value = parsed.uid;
+      nameInput.focus();
+      if (parsed.t) {
+        const btn = wrap.querySelector('#act-' + parsed.t);
+        if (btn) btn.classList.add('ring-4', 'ring-treasure-300');
+      }
+    });
+
+    const activate = async (tier) => {
+      const uid = uidInput.value.trim();
+      const name = nameInput.value.trim();
+      if (!uid) return showToast('請輸入或掃描 UID');
+      if (!name) return showToast('請輸入客人姓名');
+      result.classList.add('hidden');
+      try {
+        const res = await callApi('activate', { uid, name, tier });
+        result.innerText = '✅ ' + res.message;
+        result.className = 'text-sm text-center font-bold text-green-700 bg-green-50 rounded-xl py-2';
+        result.classList.remove('hidden');
+        uidInput.value = ''; nameInput.value = '';
+        wrap.querySelectorAll('[id^=act-1],[id^=act-2]').forEach(b => b.classList.remove('ring-4', 'ring-treasure-300'));
+      } catch (e) {
+        result.innerText = '❌ ' + e.message;
+        result.className = 'text-sm text-center font-bold text-red-700 bg-red-50 rounded-xl py-2';
+        result.classList.remove('hidden');
+      }
+    };
+    wrap.querySelector('#act-100').onclick = () => activate('100');
+    wrap.querySelector('#act-200').onclick = () => activate('200');
+  }, 0);
+  return wrap;
+}
+
+//========== $100 即時抽獎 ==========
+function renderAdminLottery100(session) {
+  const wrap = document.createElement('div');
+  wrap.className = 'glass rounded-3xl p-5 shadow space-y-4';
+  wrap.innerHTML = `
+    <div>
+      <h2 class="text-xl font-black text-treasure-900">🎁 $100 即時抽獎</h2>
+      <p class="text-sm text-gray-600 mt-1">掃描客人領獎 QR → 系統檢查資格 → 標記已抽</p>
+    </div>
+    <div class="flex gap-2">
+      <input id="l100-uid" placeholder="貼上 QR 內容或 UID"
+        class="flex-1 min-w-0 bg-white border-2 border-gray-200 rounded-xl px-3 py-2 font-mono text-xs focus:outline-none focus:border-treasure-400" />
+      <button id="l100-scan" type="button"
+        class="shrink-0 bg-treasure-50 hover:bg-treasure-100 border-2 border-treasure-200 text-treasure-800 rounded-xl px-3 py-2 text-sm font-bold">📷</button>
+    </div>
+    <button id="l100-go" class="btn-treasure w-full py-3.5">確認可抽獎</button>
+    <div id="l100-result"></div>
+  `;
+  setTimeout(() => {
+    const inp = wrap.querySelector('#l100-uid');
+    const result = wrap.querySelector('#l100-result');
+
+    const submit = async () => {
+      const parsed = parseScannedQR(inp.value);
+      if (!parsed) return showToast('請輸入或掃描有效 QR');
+      result.innerHTML = '<p class="text-center text-sm text-gray-500">查詢中…</p>';
+      try {
+        const res = await callApi('lottery100', { uid: parsed.uid, points: parsed.p || 0 });
+        if (res.ok) {
+          result.innerHTML = `
+            <div class="bg-green-50 border-2 border-green-400 rounded-2xl p-5 text-center shadow">
+              <p class="text-5xl mb-2">🎁</p>
+              <p class="font-black text-green-700 text-xl">${res.name}</p>
+              <p class="text-sm text-green-600 mt-1">$${res.tier.replace('$','')} 卡 · 完成 ${res.points} 關</p>
+              <p class="text-base font-bold text-green-800 mt-3">→ 請現場抽獎並發獎</p>
+              <p class="text-[10px] text-gray-400 mt-2">已標記抽獎時間，無法重抽</p>
+            </div>
+          `;
+          inp.value = '';
+        }
+      } catch (e) {
+        result.innerHTML = `
+          <div class="bg-red-50 border-2 border-red-400 rounded-2xl p-5 text-center shadow">
+            <p class="text-5xl mb-2">❌</p>
+            <p class="font-black text-red-700">${e.message}</p>
+            <p class="text-xs text-red-500 mt-2">→ 不發獎</p>
+          </div>
+        `;
+      }
+    };
+    wrap.querySelector('#l100-go').onclick = submit;
+    wrap.querySelector('#l100-scan').onclick = () => openScanner((text) => { inp.value = text; submit(); });
+  }, 0);
+  return wrap;
+}
+
+//========== 領獎驗證 ==========
+function renderAdminVerify(session) {
+  const wrap = document.createElement('div');
+  wrap.className = 'glass rounded-3xl p-5 shadow space-y-4';
+  wrap.innerHTML = `
+    <div>
+      <h2 class="text-xl font-black text-treasure-900">✅ 領獎驗證</h2>
+      <p class="text-sm text-gray-600 mt-1">掃客人領獎 QR → 顯示應發獎品（可寫備註）</p>
+    </div>
+    <div class="flex gap-2">
+      <input id="vfy-uid" placeholder="貼上 QR 內容或 UID"
+        class="flex-1 min-w-0 bg-white border-2 border-gray-200 rounded-xl px-3 py-2 font-mono text-xs focus:outline-none focus:border-treasure-400" />
+      <button id="vfy-scan" type="button"
+        class="shrink-0 bg-treasure-50 hover:bg-treasure-100 border-2 border-treasure-200 text-treasure-800 rounded-xl px-3 py-2 text-sm font-bold">📷</button>
+    </div>
+    <button id="vfy-go" class="btn-treasure w-full py-3.5">查詢</button>
+    <div id="vfy-result"></div>
+  `;
+  setTimeout(() => {
+    const inp = wrap.querySelector('#vfy-uid');
+    const result = wrap.querySelector('#vfy-result');
+
+    const submit = async () => {
+      const parsed = parseScannedQR(inp.value);
+      if (!parsed) return showToast('請輸入或掃描有效 QR');
+      result.innerHTML = '<p class="text-center text-sm text-gray-500">查詢中…</p>';
+      try {
+        const res = await callApi('claim', { uid: parsed.uid, points: parsed.p || 0 });
+        const e = res.eligibility;
+        const tierNum = res.tier.replace('$','');
+        const items = [];
+        if (e.basic) items.push('🎁 基礎獎品');
+        if (e.lottery100) items.push('💰 $100 抽獎資格');
+        if (e.grandPool) items.push('🧳 已入大獎池（等候抽籤）');
+        if (res.alreadyWon) items.push(`🏆 ${res.wonRound} 中過大獎`);
+
+        result.innerHTML = `
+          <div class="bg-white border-2 border-green-400 rounded-2xl p-5 shadow space-y-3">
+            <div class="bg-green-50 -m-5 mb-0 p-3 rounded-t-xl text-center">
+              <p class="font-bold text-green-700 text-sm">✅ 身分有效</p>
+            </div>
+            <div class="flex items-center gap-4 pt-2">
+              <div class="w-16 h-16 rounded-full bg-treasure-100 flex items-center justify-center text-3xl ring-4 ring-green-200">👤</div>
+              <div class="flex-1 min-w-0">
+                <p class="text-2xl font-black text-treasure-900 truncate">${res.name}</p>
+                <p class="text-xs"><span class="${tierNum==='200'?'bg-yellow-300':'bg-gray-300'} px-2 py-0.5 rounded-full font-bold">$${tierNum} 卡</span> · ${res.points}/7 關</p>
+                <p class="font-mono text-[10px] text-gray-400 truncate mt-1">${parsed.uid}</p>
+              </div>
+            </div>
+            <div class="border-t pt-2">
+              <p class="text-xs font-bold mb-2">應發獎項：</p>
+              ${items.length ? items.map(t => `<div class="bg-yellow-50 border border-yellow-300 rounded-xl px-3 py-2 text-sm font-semibold mb-1.5">${t}</div>`).join('') :
+                '<div class="text-sm text-gray-500 text-center py-2">尚未達領獎門檻（< 3 關）</div>'}
+            </div>
+            <button id="vfy-note" class="w-full bg-treasure-50 hover:bg-treasure-100 text-treasure-800 rounded-xl py-2 text-sm font-bold">✍️ 寫備註（如：基礎獎已領）</button>
+          </div>
+        `;
+        wrap.querySelector('#vfy-note').onclick = async () => {
+          const note = prompt('輸入備註（會寫入 Sheet K 欄）：');
+          if (note == null) return;
+          try { await callApi('note', { uid: parsed.uid, note }); showToast('✅ 備註已存'); }
+          catch (er) { showToast('❌ ' + er.message); }
+        };
+      } catch (e) {
+        result.innerHTML = `
+          <div class="bg-red-50 border-2 border-red-400 rounded-2xl p-5 text-center shadow">
+            <p class="text-5xl mb-2">❌</p>
+            <p class="font-black text-red-700">${e.message}</p>
+            <p class="text-xs text-red-500 mt-2">→ 不發獎</p>
+          </div>
+        `;
+      }
+    };
+    wrap.querySelector('#vfy-go').onclick = submit;
+    wrap.querySelector('#vfy-scan').onclick = () => openScanner((text) => { inp.value = text; submit(); });
+  }, 0);
+  return wrap;
+}
+
+//========== 抽大獎（organizer） ==========
+function renderAdminDraw200(session) {
+  const wrap = document.createElement('div');
+  wrap.className = 'glass rounded-3xl p-5 shadow space-y-4';
+  wrap.innerHTML = `
+    <div>
+      <h2 class="text-xl font-black text-treasure-900">🎲 $200 大獎抽籤</h2>
+      <p class="text-sm text-gray-600 mt-1">主辦方限定。已中獎者自動排除。</p>
+    </div>
+    <div id="d200-pool" class="text-center bg-treasure-50 rounded-2xl p-3">
+      <p class="text-sm text-gray-600">目前可抽人數</p>
+      <p class="text-4xl font-black text-treasure-900 mt-1">…</p>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-bold mb-1">輪次名稱</label>
+        <input id="d200-round" value="第 1 輪 (12:00)"
+          class="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-treasure-400" />
+      </div>
+      <div>
+        <label class="block text-xs font-bold mb-1">抽出人數</label>
+        <input id="d200-count" type="number" min="1" value="5"
+          class="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-treasure-400" />
+      </div>
+    </div>
+    <button id="d200-go" class="btn-treasure w-full py-3.5">🎲 開始抽獎</button>
+    <div id="d200-result"></div>
+  `;
+  setTimeout(() => {
+    const refreshPool = async () => {
+      try {
+        const res = await callApi('eligible200');
+        wrap.querySelector('#d200-pool p:nth-child(2)').innerText = res.count;
+      } catch (e) {
+        wrap.querySelector('#d200-pool p:nth-child(2)').innerText = '?';
+      }
+    };
+    refreshPool();
+    wrap.querySelector('#d200-go').onclick = async () => {
+      const round = wrap.querySelector('#d200-round').value.trim();
+      const count = Number(wrap.querySelector('#d200-count').value);
+      if (!round) return showToast('請輸入輪次名稱');
+      if (!count || count < 1) return showToast('抽出人數要 ≥ 1');
+      if (!confirm(`確定抽 ${count} 位（${round}）？此動作會寫入 Sheet`)) return;
+      const result = wrap.querySelector('#d200-result');
+      result.innerHTML = '<p class="text-center text-sm text-gray-500">抽獎中…</p>';
+      try {
+        const res = await callApi('draw200', { round, count });
+        result.innerHTML = `
+          <div class="bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 rounded-3xl p-5 shadow-2xl text-white space-y-3">
+            <div class="text-center">
+              <p class="text-4xl mb-1">🏆</p>
+              <h3 class="font-black text-2xl drop-shadow">${res.round}</h3>
+              <p class="text-xs opacity-80">${new Date(res.drawnAt).toLocaleString('zh-TW')}</p>
+            </div>
+            <div class="space-y-1.5">
+              ${res.winners.map((w, i) => `
+                <div class="bg-white/95 rounded-xl px-3 py-2.5 flex items-center gap-2 text-ink">
+                  <span class="text-lg font-black w-8 text-treasure-600">#${i + 1}</span>
+                  <span class="text-2xl">🎉</span>
+                  <span class="flex-1 font-bold truncate">${w.name}</span>
+                  <span class="text-[10px] font-mono text-gray-400 truncate">${w.uid.slice(-8)}</span>
+                </div>
+              `).join('')}
+            </div>
+            <p class="text-center text-xs opacity-90 pt-2">大螢幕也會同步顯示</p>
+          </div>
+        `;
+        refreshPool();
+      } catch (e) {
+        result.innerHTML = `<div class="bg-red-50 border-2 border-red-400 rounded-2xl p-4 text-center"><p class="font-bold text-red-700">❌ ${e.message}</p></div>`;
+      }
+    };
+  }, 0);
+  return wrap;
+}
+
+//========== 站點 QR（離線設定，只供工作人員列印） ==========
+function renderAdminStations(session) {
+  const canEdit = session && session.role === 'organizer';
+  const wrap = document.createElement('div');
+  wrap.className = 'space-y-3';
+  wrap.innerHTML = `
+    <div class="${canEdit ? 'bg-blue-50 border-blue-200 text-blue-900' : 'bg-amber-50 border-amber-300 text-amber-900'} border rounded-xl p-3 text-xs">
+      ${canEdit
+        ? `ℹ️ 您是<strong>主辦方</strong>，可編輯關卡名稱／題目／答案。修改後請<strong>務必同步通知所有玩家手機刷新</strong>，且建議活動開始前完成設定。<br>📌 玩家網址：<span class="font-mono break-all">${PLAYER_URL}</span>`
+        : `🔒 此頁僅<strong>檢視</strong>，需<strong>主辦方</strong>帳號才能編輯關卡內容（防止活動中誤觸破壞答案比對）。<br>您可以列印 QR、複製貼到現場道具旁。<br>📌 玩家網址：<span class="font-mono break-all">${PLAYER_URL}</span>`}
+    </div>
+    <h2 class="text-xl font-black text-treasure-900">關卡 QR Code 與題目（${stations.length} 關）${canEdit ? '' : ' <span class="text-sm font-normal text-amber-700">🔒 鎖定</span>'}</h2>
+  `;
+  stations.forEach(s => wrap.appendChild(renderStationCard(s, canEdit)));
+  return wrap;
+}
+
+function renderStationCard(s, canEdit) {
+  const url = generateStationQR(s.sid);
+  const disabledAttr = canEdit ? '' : 'disabled';
+  const lockedClass = canEdit ? '' : 'bg-gray-50 cursor-not-allowed opacity-90';
+  const card = document.createElement('div');
+  card.className = 'glass rounded-3xl p-4 shadow';
+  card.innerHTML = `
+    <div class="flex items-start gap-4">
+      <div class="flex-1 min-w-0 space-y-2">
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] bg-treasure-50 px-2.5 py-0.5 rounded-full font-bold text-treasure-700 shrink-0">#${s.sid}</span>
+          <input data-sid="${s.sid}" class="n-input flex-1 min-w-0 text-sm font-bold ${lockedClass} bg-white border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-treasure-400" placeholder="關卡名稱" value="${s.name || ''}" ${disabledAttr} />
+        </div>
+        <textarea data-sid="${s.sid}" class="q-input w-full text-sm ${lockedClass} bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-treasure-400" rows="2" placeholder="題目" ${disabledAttr}>${s.question}</textarea>
+        <input data-sid="${s.sid}" class="a-input w-full text-sm ${lockedClass} bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-treasure-400" placeholder="標準答案" value="${s.answer}" ${disabledAttr} />
+        ${canEdit
+          ? `<button class="save-q w-full bg-ink text-white rounded-xl py-2 text-xs font-bold">💾 儲存（會跳確認）</button>`
+          : `<div class="w-full bg-gray-100 text-gray-500 rounded-xl py-2 text-xs font-bold text-center">🔒 主辦方限定編輯</div>`}
+      </div>
+      <div class="text-center shrink-0">
+        <div class="qr-canvas mx-auto bg-white rounded-xl p-1 inline-block"></div>
+        <p class="text-[9px] font-mono text-gray-400 mt-1 break-all w-32">${url}</p>
+      </div>
+    </div>
+  `;
+  setTimeout(() => {
+    const el = card.querySelector('.qr-canvas');
+    el.innerHTML = '';
+    new QRCode(el, { text: url, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M });
+    if (canEdit) {
+      card.querySelector('.save-q').onclick = () => {
+        const station = stations.find(x => x.sid === s.sid);
+        const newName = card.querySelector('.n-input').value.trim();
+        const newQ = card.querySelector('.q-input').value.trim();
+        const newA = card.querySelector('.a-input').value.trim();
+        const changed = (newName !== (station.name || '')) || (newQ !== station.question) || (newA !== station.answer);
+        if (!changed) { showToast('內容未變動，無需儲存'); return; }
+        const msg =
+          `⚠️ 確定要變更【第 ${s.sid} 關】設定？\n\n` +
+          `名稱：${station.name || '(空)'}  →  ${newName || '(空)'}\n` +
+          `題目：${station.question}\n  →  ${newQ}\n` +
+          `答案：${station.answer}  →  ${newA}\n\n` +
+          `變更後，玩家手機若已快取舊版本，需重新整理才會同步。\n建議只在「活動開始前」修改。`;
+        if (!confirm(msg)) return;
+        station.name = newName;
+        station.question = newQ;
+        station.answer = newA;
+        saveStations(stations);
+        showToast(`✅ 第 ${s.sid} 關已儲存（本機）`);
+      };
+    }
+  }, 0);
+  return card;
+}
+
+//========== 統計 ==========
+function renderAdminStats() {
+  const wrap = document.createElement('div');
+  wrap.className = 'glass rounded-3xl p-5 shadow space-y-4';
+  wrap.innerHTML = `
+    <div>
+      <h2 class="text-xl font-black text-treasure-900">📊 即時統計</h2>
+      <p class="text-sm text-gray-600 mt-1">直接看 Sheet 取得最完整資訊</p>
+    </div>
+    <div id="stats-body"><p class="text-center text-sm text-gray-500">查詢中…</p></div>
+    <a href="https://docs.google.com/spreadsheets" target="_blank" rel="noopener"
+      class="block btn-treasure text-center py-3 text-sm">📂 打開 Google Sheet</a>
+  `;
+  setTimeout(async () => {
+    try {
+      const r = await callApi('stats');
+      wrap.querySelector('#stats-body').innerHTML = `
+        <div class="grid grid-cols-2 gap-3">
+          ${[
+            ['總啟動', r.total, 'bg-blue-50'],
+            ['$100 卡', r.t100, 'bg-gray-100'],
+            ['$200 卡', r.t200, 'bg-yellow-100'],
+            ['完成 ≥3 關', r.completed3, 'bg-pink-50'],
+            ['完成 7 關', r.completed7, 'bg-rose-50'],
+            ['$100 抽過獎', r.drew100, 'bg-orange-50'],
+            ['$200 中大獎', r.won200, 'bg-violet-50']
+          ].map(([k, v, c]) => `
+            <div class="${c} rounded-2xl p-4">
+              <p class="text-xs text-gray-600">${k}</p>
+              <p class="text-3xl font-black mt-1">${v}</p>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } catch (e) {
+      wrap.querySelector('#stats-body').innerHTML = `<p class="text-center text-sm text-red-600">❌ ${e.message}</p>`;
+    }
+  }, 0);
+  return wrap;
+}
+
+//========== Toast ==========
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.innerText = msg;
+  el.classList.remove('hidden');
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(() => el.classList.add('hidden'), 2500);
+}
+
+//========== QR Camera Scanner ==========
+let _scanner = null;
+let _scanCameras = [];
+let _scanOnResult = null;
+
+async function startScanWithCam(camId) {
+  const hint = document.getElementById('scan-hint');
+  if (_scanner) {
+    try { await _scanner.stop(); _scanner.clear(); } catch (e) {}
+    _scanner = null;
+  }
+  _scanner = new Html5Qrcode('scan-reader');
+  hint.innerText = '正在啟動相機…';
+  try {
+    await _scanner.start(
+      camId,
+      { fps: 10, qrbox: { width: 240, height: 240 } },
+      (decoded) => {
+        const cb = _scanOnResult;
+        closeScanner();
+        if (cb) cb(decoded);
+      },
+      () => {}
+    );
+    hint.innerText = '請將 QR Code 對準鏡頭';
+  } catch (e) {
+    hint.innerText = '❌ 無法啟動相機：' + (e.message || e);
+  }
+}
+
+async function openScanner(onResult) {
+  if (typeof Html5Qrcode === 'undefined') { showToast('掃描函式庫未載入'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('瀏覽器不支援相機（請用 HTTPS 或 localhost）'); return;
+  }
+  _scanOnResult = onResult;
+  const modal = document.getElementById('scan-modal');
+  const select = document.getElementById('scan-camera-select');
+  const hint = document.getElementById('scan-hint');
+  modal.classList.remove('hidden');
+  hint.innerText = '正在請求相機權限…';
+
+  try {
+    _scanCameras = await Html5Qrcode.getCameras();
+    if (!_scanCameras || _scanCameras.length === 0) {
+      hint.innerText = '❌ 找不到任何相機'; return;
+    }
+    const back = _scanCameras.find(c => /back|rear|environment|後/i.test(c.label || ''));
+    const initial = back || _scanCameras[_scanCameras.length - 1];
+    if (_scanCameras.length > 1) {
+      select.innerHTML = _scanCameras.map(c =>
+        `<option value="${c.id}" ${c.id === initial.id ? 'selected' : ''}>${c.label || ('相機 ' + c.id.slice(0, 6))}</option>`
+      ).join('');
+      select.classList.remove('hidden');
+      select.onchange = () => startScanWithCam(select.value);
+    } else {
+      select.classList.add('hidden');
+    }
+    await startScanWithCam(initial.id);
+  } catch (e) {
+    hint.innerText = '❌ 無法存取相機：' + (e.message || e);
+  }
+}
+
+async function closeScanner() {
+  const modal = document.getElementById('scan-modal');
+  modal.classList.add('hidden');
+  _scanOnResult = null;
+  if (_scanner) {
+    try { await _scanner.stop(); _scanner.clear(); } catch (e) {}
+    _scanner = null;
+  }
+}
+
+document.getElementById('scan-close').onclick = closeScanner;
+document.getElementById('scan-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'scan-modal') closeScanner();
+});
+
+//========== Init ==========
+render();
+</script>
+</body>
+</html>
