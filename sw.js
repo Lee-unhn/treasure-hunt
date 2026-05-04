@@ -2,7 +2,7 @@
 // 策略：cache-first（離線優先），首次安裝預先抓所有靜態資源
 // 升級時 bump CACHE_VERSION 即可強制重新下載
 
-const CACHE_VERSION = 'treasure-hunt-v8';
+const CACHE_VERSION = 'treasure-hunt-v9';
 const ASSETS = [
   './',
   './index.html',
@@ -10,10 +10,10 @@ const ASSETS = [
   './manifest.json',
   './vendor/tailwind.min.js',
   './vendor/qrcode.min.js',
+  './vendor/html5-qrcode.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png'
-  // 注意：vendor/html5-qrcode.min.js 只有 admin 用，動態快取
 ];
 
 self.addEventListener('install', (event) => {

@@ -13,6 +13,7 @@
 <title>尋寶獵人</title>
 <script src="vendor/tailwind.min.js"></script>
 <script src="vendor/qrcode.min.js"></script>
+<script src="vendor/html5-qrcode.min.js"></script>
 <script>
   tailwind.config = {
     theme: {
@@ -82,19 +83,35 @@
 
 <main id="main" class="max-w-2xl mx-auto p-4 pb-24"></main>
 
-<!-- Question Modal -->
-<div id="question-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4">
-  <div class="bg-white rounded-3xl w-full max-w-md p-6 animate-pop">
+<!-- Scan Modal (in-app camera scanner) -->
+<div id="scan-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-3xl w-full max-w-md p-5 animate-pop">
     <div class="flex items-center justify-between mb-3">
-      <h3 class="font-black text-lg text-treasure-900" id="modal-title">第 1 關</h3>
-      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+      <h3 class="font-black text-lg text-treasure-900">📷 掃描關卡 QR</h3>
+      <button id="scan-close" class="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
     </div>
-    <p class="text-sm text-gray-600 mb-2">仔細觀察道具，回答以下問題：</p>
-    <p class="bg-treasure-50 rounded-2xl p-4 mb-3 font-semibold leading-relaxed" id="modal-question"></p>
-    <input id="modal-input" placeholder="請輸入答案" autocomplete="off"
-      class="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3 text-lg focus:outline-none focus:border-treasure-400" />
-    <p id="modal-hint" class="hidden mt-2 text-sm text-red-600">答錯囉，再仔細看看 👀</p>
-    <button id="modal-submit" class="btn-treasure w-full py-3.5 mt-4 text-base">提交答案</button>
+    <div id="scan-reader" class="rounded-xl overflow-hidden bg-black w-full" style="min-height: 280px;"></div>
+    <p id="scan-hint" class="text-center text-xs text-gray-500 mt-3">請將關卡 QR Code 對準鏡頭</p>
+    <select id="scan-camera-select" class="hidden w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-2 text-sm mt-3"></select>
+  </div>
+</div>
+
+<!-- Found Celebration Modal -->
+<div id="found-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+  <div class="bg-gradient-to-br from-amber-300 via-yellow-400 to-orange-500 rounded-3xl w-full max-w-md p-8 animate-pop text-center text-white shadow-2xl relative overflow-hidden">
+    <div class="absolute inset-0 opacity-20 text-[12rem] flex items-center justify-center select-none animate-float">💎</div>
+    <div class="relative">
+      <div class="text-7xl animate-pop">💎</div>
+      <div class="text-3xl mt-1 animate-sparkle">✨</div>
+      <p class="mt-3 text-sm uppercase tracking-[0.3em] opacity-90">恭喜找到</p>
+      <h2 id="found-name" class="text-3xl font-black mt-2 drop-shadow">關卡名稱</h2>
+      <p id="found-sid" class="text-sm mt-1 opacity-90">第 X 關</p>
+      <div class="mt-5 bg-white/20 backdrop-blur rounded-2xl py-3">
+        <p class="text-xs opacity-90">目前進度</p>
+        <p class="text-4xl font-black mt-1"><span id="found-points">3</span> / 7</p>
+      </div>
+      <button id="found-close" class="mt-5 bg-white text-orange-600 font-bold py-3 px-8 rounded-full shadow-lg hover:scale-105 transition">繼續尋寶 →</button>
+    </div>
   </div>
 </div>
 
@@ -122,14 +139,15 @@ const TOTAL_STATIONS = 7;
 const BASIC_THRESHOLD = 3;
 const PREMIUM_BONUS_THRESHOLD = 7;
 
-const SEED_QUESTIONS = [
-  { name: '運河碼頭登記簿',         question: '請找到「運河碼頭登記簿」，答案是？',         answer: '(待填)' },
-  { name: '中國城最後一家店的收據', question: '請找到「中國城最後一家店的收據」，答案是？', answer: '(待填)' },
-  { name: '某人沒寄出的信',         question: '請找到「某人沒寄出的信」，答案是？',         answer: '(待填)' },
-  { name: '地下街廣播員的手稿',     question: '請找到「地下街廣播員的手稿」，答案是？',     answer: '(待填)' },
-  { name: '台南阿嬤的菜市仔袋',     question: '請找到「台南阿嬤的菜市仔袋」，答案是？',     answer: '(待填)' },
-  { name: '夜奇鴨的羽毛',           question: '請找到「夜奇鴨的羽毛」，答案是？',           answer: '(待填)' },
-  { name: '時間膠囊',               question: '請找到「時間膠囊」，答案是？',               answer: '(待填)' }
+// 7 個關卡 — 只需要名稱（玩家掃 QR 即解鎖，無問答）
+const STATIONS = [
+  { sid: 1, name: '運河碼頭登記簿' },
+  { sid: 2, name: '中國城最後一家店的收據' },
+  { sid: 3, name: '某人沒寄出的信' },
+  { sid: 4, name: '地下街廣播員的手稿' },
+  { sid: 5, name: '台南阿嬤的菜市仔袋' },
+  { sid: 6, name: '夜奇鴨的羽毛' },
+  { sid: 7, name: '時間膠囊' }
 ];
 
 //========== Storage ==========
@@ -137,42 +155,59 @@ function newUid() { return 'U-' + Date.now().toString(36).slice(-5) + '-' + Math
 
 function loadDb() {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) { try { return JSON.parse(saved); } catch (e) {} }
-  return {
-    users: [],
-    currentUid: null,
-    stations: SEED_QUESTIONS.map((q, i) => ({ sid: i + 1, name: q.name, question: q.question, answer: q.answer })),
-    scanLogs: []
-  };
+  if (saved) {
+    try {
+      const d = JSON.parse(saved);
+      d.stations = STATIONS; // 強制以最新版本為準（避免舊 localStorage 留著舊題目）
+      return d;
+    } catch (e) {}
+  }
+  return { users: [], currentUid: null, stations: STATIONS, scanLogs: [] };
 }
 function saveDb() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 let db = loadDb();
 
-//========== Logic ==========
-function normalize(text) {
-  if (text == null) return '';
-  return String(text)
-    .replace(/[！-～]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
-    .replace(/[\s　]/g, '')
-    .toLowerCase();
+//========== 站點解鎖（從掃描而來）==========
+function markStationFound(sid) {
+  const user = getCurrentUser();
+  if (!user) { showToast('請先建立玩家'); return false; }
+  if (!user.isActivated) { showToast('請先付費啟動'); return false; }
+  const station = STATIONS.find(s => s.sid === sid);
+  if (!station) { showToast(`無此關卡 (#${sid})`); return false; }
+  if (scannedSet(user.uid).has(sid)) {
+    showToast(`✅ 已找到：${station.name}`);
+    return false;
+  }
+  db.scanLogs.push({ uid: user.uid, sid, timestamp: Date.now() });
+  saveDb();
+  if ('vibrate' in navigator) navigator.vibrate(200);
+  showFoundCelebration(station, pointsOf(user.uid));
+  render();
+  return true;
 }
 
-function verifyAnswer(input, stationId) {
-  const uid = db.currentUid;
-  if (!uid) return { ok: false, reason: '尚未建立玩家' };
-  const user = db.users.find(u => u.uid === uid);
-  if (!user) return { ok: false, reason: '查無玩家' };
-  const station = db.stations.find(s => s.sid === stationId);
-  if (!station) return { ok: false, reason: '無此關卡' };
-  if (db.scanLogs.some(l => l.uid === uid && l.sid === stationId)) {
-    return { ok: false, reason: '此關已完成過', already: true };
+function showFoundCelebration(station, points) {
+  document.getElementById('found-name').innerText = station.name;
+  document.getElementById('found-sid').innerText = `第 ${station.sid} 關`;
+  document.getElementById('found-points').innerText = points;
+  document.getElementById('found-modal').classList.remove('hidden');
+}
+function closeFoundModal() { document.getElementById('found-modal').classList.add('hidden'); }
+
+/** 從 QR 掃到的文字裡擷取 sid（支援 URL ?sid=N 或純數字）*/
+function extractSidFromText(text) {
+  if (!text) return null;
+  text = String(text).trim();
+  try {
+    const url = new URL(text);
+    const sid = parseInt(url.searchParams.get('sid'), 10);
+    if (sid >= 1 && sid <= TOTAL_STATIONS) return sid;
+  } catch (e) {}
+  if (/^\d+$/.test(text)) {
+    const n = parseInt(text, 10);
+    if (n >= 1 && n <= TOTAL_STATIONS) return n;
   }
-  if (normalize(input) !== normalize(station.answer)) {
-    return { ok: false, reason: '答案不正確' };
-  }
-  db.scanLogs.push({ uid, sid: stationId, timestamp: Date.now() });
-  saveDb();
-  return { ok: true, points: pointsOf(uid) };
+  return null;
 }
 
 //========== Helpers ==========
@@ -472,11 +507,38 @@ function renderUserMap(user) {
         `;
       }).join('')}
     </div>
+
+    <button id="scan-station-btn" class="w-full mt-3 bg-gradient-to-r from-treasure-500 to-treasure-700 text-white rounded-2xl py-5 text-lg font-black shadow-xl hover:scale-[1.02] active:scale-[0.98] transition flex items-center justify-center gap-3">
+      <span class="text-3xl">📷</span>
+      <span>掃描關卡 QR</span>
+    </button>
+    <p class="text-[11px] text-center text-gray-500">→ 拿手機到關卡道具旁，對準 QR 掃描就能解鎖</p>
   `;
   setTimeout(() => {
+    // 點擊地圖格子：顯示狀態提示，不能直接解鎖
     wrap.querySelectorAll('.station-btn').forEach(btn => {
-      btn.onclick = () => openQuestion(parseInt(btn.dataset.sid, 10));
+      btn.onclick = () => {
+        const sid = parseInt(btn.dataset.sid, 10);
+        const station = STATIONS.find(s => s.sid === sid);
+        if (set.has(sid)) {
+          showToast(`✅ 已找到：${station.name}`);
+        } else {
+          showToast(`📷 請到 #${sid} ${station.name} 現場掃 QR`);
+        }
+      };
     });
+    // 大按鈕：開啟相機掃描
+    wrap.querySelector('#scan-station-btn').onclick = () => {
+      openScanner((text) => {
+        const sid = extractSidFromText(text);
+        if (!sid) {
+          const preview = String(text || '').slice(0, 40);
+          showToast(`❌ 不是關卡 QR：${preview}`);
+          return;
+        }
+        markStationFound(sid);
+      });
+    };
   }, 0);
   return wrap;
 }
@@ -520,50 +582,75 @@ function renderUserClaim(user) {
   return wrap;
 }
 
-//========== Modal ==========
-let modalSid = null;
+//========== Found-Modal 綁定 ==========
+document.getElementById('found-close').onclick = closeFoundModal;
+document.getElementById('found-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'found-modal') closeFoundModal();
+});
 
-function openQuestion(sid) {
-  const user = getCurrentUser();
-  if (!user) { showToast('請先建立玩家'); return; }
-  if (scannedSet(user.uid).has(sid)) { showToast(`第 ${sid} 關已經完成過囉`); return; }
-  const station = db.stations.find(s => s.sid === sid);
-  modalSid = sid;
-  document.getElementById('modal-title').innerText = `第 ${sid} 關 · ${station.name || ''}`;
-  document.getElementById('modal-question').innerText = station.question;
-  document.getElementById('modal-input').value = '';
-  document.getElementById('modal-hint').classList.add('hidden');
-  document.getElementById('question-modal').classList.remove('hidden');
-  setTimeout(() => document.getElementById('modal-input').focus(), 100);
-}
+//========== QR Camera Scanner（玩家用）==========
+let _scanner = null;
+let _scanCameras = [];
+let _scanOnResult = null;
 
-function closeModal() {
-  document.getElementById('question-modal').classList.add('hidden');
-  modalSid = null;
-}
-
-function submitAnswer() {
-  if (!modalSid) return;
-  const input = document.getElementById('modal-input').value;
-  const result = verifyAnswer(input, modalSid);
-  if (!result.ok) {
-    if (result.already) { showToast(result.reason); closeModal(); }
-    else {
-      document.getElementById('modal-hint').classList.remove('hidden');
-      if ('vibrate' in navigator) navigator.vibrate(50);
-    }
-    return;
+async function startScanWithCam(camId) {
+  const hint = document.getElementById('scan-hint');
+  if (_scanner) { try { await _scanner.stop(); _scanner.clear(); } catch (e) {} _scanner = null; }
+  _scanner = new Html5Qrcode('scan-reader');
+  hint.innerText = '正在啟動相機…';
+  try {
+    await _scanner.start(
+      camId,
+      { fps: 10, qrbox: { width: 240, height: 240 } },
+      (decoded) => { const cb = _scanOnResult; closeScanner(); if (cb) cb(decoded); },
+      () => {}
+    );
+    hint.innerText = '請將關卡 QR Code 對準鏡頭';
+  } catch (e) {
+    hint.innerText = '❌ 無法啟動相機：' + (e.message || e);
   }
-  const sid = modalSid;
-  closeModal();
-  showToast(`🎉 第 ${sid} 關集點成功！(${result.points}/${TOTAL_STATIONS})`);
-  if ('vibrate' in navigator) navigator.vibrate(200);
-  render();
 }
 
-document.getElementById('modal-submit').onclick = submitAnswer;
-document.getElementById('modal-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') submitAnswer();
+async function openScanner(onResult) {
+  if (typeof Html5Qrcode === 'undefined') { showToast('掃描函式庫未載入'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('瀏覽器不支援相機（請用 https）'); return;
+  }
+  _scanOnResult = onResult;
+  const modal = document.getElementById('scan-modal');
+  const select = document.getElementById('scan-camera-select');
+  const hint = document.getElementById('scan-hint');
+  modal.classList.remove('hidden');
+  hint.innerText = '正在請求相機權限…';
+  try {
+    _scanCameras = await Html5Qrcode.getCameras();
+    if (!_scanCameras || !_scanCameras.length) { hint.innerText = '❌ 找不到相機'; return; }
+    const back = _scanCameras.find(c => /back|rear|environment|後/i.test(c.label || ''));
+    const initial = back || _scanCameras[_scanCameras.length - 1];
+    if (_scanCameras.length > 1) {
+      select.innerHTML = _scanCameras.map(c =>
+        `<option value="${c.id}" ${c.id === initial.id ? 'selected' : ''}>${c.label || ('相機 ' + c.id.slice(0, 6))}</option>`
+      ).join('');
+      select.classList.remove('hidden');
+      select.onchange = () => startScanWithCam(select.value);
+    } else {
+      select.classList.add('hidden');
+    }
+    await startScanWithCam(initial.id);
+  } catch (e) {
+    hint.innerText = '❌ 無法存取相機：' + (e.message || e);
+  }
+}
+
+async function closeScanner() {
+  document.getElementById('scan-modal').classList.add('hidden');
+  _scanOnResult = null;
+  if (_scanner) { try { await _scanner.stop(); _scanner.clear(); } catch (e) {} _scanner = null; }
+}
+
+document.getElementById('scan-close').onclick = closeScanner;
+document.getElementById('scan-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'scan-modal') closeScanner();
 });
 
 //========== Toast ==========
@@ -575,19 +662,15 @@ function showToast(msg) {
   window._toastT = setTimeout(() => el.classList.add('hidden'), 2500);
 }
 
-//========== Deep-link: 站點 QR 掃進來 ==========
+//========== Deep-link: 用手機原生相機掃 QR 進來時 ==========
 (function handleScanLink() {
   const params = new URLSearchParams(location.search);
   const sid = parseInt(params.get('sid') || '0', 10);
   if (!sid) return;
-  const station = db.stations.find(s => s.sid === sid);
   history.replaceState({}, '', location.pathname);
-  if (!station) { setTimeout(() => showToast('無此關卡'), 300); return; }
   setTimeout(() => {
-    const user = getCurrentUser();
-    if (!user) showToast('請先建立玩家');
-    else if (!user.tier) showToast('請先選擇卡別');
-    else openQuestion(sid);
+    // 直接解鎖（不再開問答）
+    markStationFound(sid);
   }, 300);
 })();
 
