@@ -107,24 +107,16 @@ async function callApi(action, payload = {}) {
   return data;
 }
 
-//========== 站點 QR 設定（離線本地） ==========
-const STATION_KEY = 'treasure_hunt_admin_stations_v2';
-const SEED_QUESTIONS = [
-  { name: '運河碼頭登記簿',         question: '請找到「運河碼頭登記簿」，答案是？',         answer: '(待填)' },
-  { name: '中國城最後一家店的收據', question: '請找到「中國城最後一家店的收據」，答案是？', answer: '(待填)' },
-  { name: '某人沒寄出的信',         question: '請找到「某人沒寄出的信」，答案是？',         answer: '(待填)' },
-  { name: '地下街廣播員的手稿',     question: '請找到「地下街廣播員的手稿」，答案是？',     answer: '(待填)' },
-  { name: '台南阿嬤的菜市仔袋',     question: '請找到「台南阿嬤的菜市仔袋」，答案是？',     answer: '(待填)' },
-  { name: '夜奇鴨的羽毛',           question: '請找到「夜奇鴨的羽毛」，答案是？',           answer: '(待填)' },
-  { name: '時間膠囊',               question: '請找到「時間膠囊」，答案是？',               answer: '(待填)' }
+//========== 站點 QR（純列印用，名稱寫死）==========
+const STATIONS = [
+  { sid: 1, name: '運河碼頭登記簿' },
+  { sid: 2, name: '中國城最後一家店的收據' },
+  { sid: 3, name: '某人沒寄出的信' },
+  { sid: 4, name: '地下街廣播員的手稿' },
+  { sid: 5, name: '台南阿嬤的菜市仔袋' },
+  { sid: 6, name: '夜奇鴨的羽毛' },
+  { sid: 7, name: '時間膠囊' }
 ];
-function loadStations() {
-  const saved = localStorage.getItem(STATION_KEY);
-  if (saved) { try { return JSON.parse(saved); } catch (e) {} }
-  return SEED_QUESTIONS.map((q, i) => ({ sid: i + 1, name: q.name, question: q.question, answer: q.answer }));
-}
-function saveStations(arr) { localStorage.setItem(STATION_KEY, JSON.stringify(arr)); }
-let stations = loadStations();
 
 function generateStationQR(stationId) {
   return `${PLAYER_URL}?sid=${stationId}`;
@@ -543,72 +535,46 @@ function renderAdminDraw200(session) {
 
 //========== 站點 QR（離線設定，只供工作人員列印） ==========
 function renderAdminStations(session) {
-  const canEdit = session && session.role === 'organizer';
   const wrap = document.createElement('div');
   wrap.className = 'space-y-3';
   wrap.innerHTML = `
-    <div class="${canEdit ? 'bg-blue-50 border-blue-200 text-blue-900' : 'bg-amber-50 border-amber-300 text-amber-900'} border rounded-xl p-3 text-xs">
-      ${canEdit
-        ? `ℹ️ 您是<strong>主辦方</strong>，可編輯關卡名稱／題目／答案。修改後請<strong>務必同步通知所有玩家手機刷新</strong>，且建議活動開始前完成設定。<br>📌 玩家網址：<span class="font-mono break-all">${PLAYER_URL}</span>`
-        : `🔒 此頁僅<strong>檢視</strong>，需<strong>主辦方</strong>帳號才能編輯關卡內容（防止活動中誤觸破壞答案比對）。<br>您可以列印 QR、複製貼到現場道具旁。<br>📌 玩家網址：<span class="font-mono break-all">${PLAYER_URL}</span>`}
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900">
+      ℹ️ 關卡 QR 已寫死、永不變動，<strong>列印一次貼到現場道具旁即可</strong>。<br>
+      要修改關卡名稱請改 <code class="bg-white px-1 rounded">index.html</code> 程式碼裡的 <code class="bg-white px-1 rounded">STATIONS</code> 後重新部署。<br>
+      📌 玩家網址：<span class="font-mono break-all">${PLAYER_URL}</span>
     </div>
-    <h2 class="text-xl font-black text-treasure-900">關卡 QR Code 與題目（${stations.length} 關）${canEdit ? '' : ' <span class="text-sm font-normal text-amber-700">🔒 鎖定</span>'}</h2>
+    <div class="flex items-center justify-between">
+      <h2 class="text-xl font-black text-treasure-900">📷 關卡 QR Code（${STATIONS.length} 關）</h2>
+      <button id="print-all" class="bg-ink text-white rounded-xl px-4 py-2 text-sm font-bold">🖨 列印全部</button>
+    </div>
   `;
-  stations.forEach(s => wrap.appendChild(renderStationCard(s, canEdit)));
+  STATIONS.forEach(s => wrap.appendChild(renderStationCard(s)));
+  setTimeout(() => {
+    wrap.querySelector('#print-all').onclick = () => window.print();
+  }, 0);
   return wrap;
 }
 
-function renderStationCard(s, canEdit) {
+function renderStationCard(s) {
   const url = generateStationQR(s.sid);
-  const disabledAttr = canEdit ? '' : 'disabled';
-  const lockedClass = canEdit ? '' : 'bg-gray-50 cursor-not-allowed opacity-90';
   const card = document.createElement('div');
   card.className = 'glass rounded-3xl p-4 shadow';
   card.innerHTML = `
-    <div class="flex items-start gap-4">
-      <div class="flex-1 min-w-0 space-y-2">
-        <div class="flex items-center gap-2">
-          <span class="text-[11px] bg-treasure-50 px-2.5 py-0.5 rounded-full font-bold text-treasure-700 shrink-0">#${s.sid}</span>
-          <input data-sid="${s.sid}" class="n-input flex-1 min-w-0 text-sm font-bold ${lockedClass} bg-white border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-treasure-400" placeholder="關卡名稱" value="${s.name || ''}" ${disabledAttr} />
-        </div>
-        <textarea data-sid="${s.sid}" class="q-input w-full text-sm ${lockedClass} bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-treasure-400" rows="2" placeholder="題目" ${disabledAttr}>${s.question}</textarea>
-        <input data-sid="${s.sid}" class="a-input w-full text-sm ${lockedClass} bg-white border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-treasure-400" placeholder="標準答案" value="${s.answer}" ${disabledAttr} />
-        ${canEdit
-          ? `<button class="save-q w-full bg-ink text-white rounded-xl py-2 text-xs font-bold">💾 儲存（會跳確認）</button>`
-          : `<div class="w-full bg-gray-100 text-gray-500 rounded-xl py-2 text-xs font-bold text-center">🔒 主辦方限定編輯</div>`}
-      </div>
+    <div class="flex items-center gap-4">
       <div class="text-center shrink-0">
         <div class="qr-canvas mx-auto bg-white rounded-xl p-1 inline-block"></div>
-        <p class="text-[9px] font-mono text-gray-400 mt-1 break-all w-32">${url}</p>
+      </div>
+      <div class="flex-1 min-w-0 space-y-1">
+        <p class="text-[11px] bg-treasure-50 inline-block px-2.5 py-0.5 rounded-full font-bold text-treasure-700">#${s.sid}</p>
+        <p class="text-lg font-black text-treasure-900 break-words">${s.name}</p>
+        <p class="text-[10px] font-mono text-gray-400 break-all">${url}</p>
       </div>
     </div>
   `;
   setTimeout(() => {
     const el = card.querySelector('.qr-canvas');
     el.innerHTML = '';
-    new QRCode(el, { text: url, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M });
-    if (canEdit) {
-      card.querySelector('.save-q').onclick = () => {
-        const station = stations.find(x => x.sid === s.sid);
-        const newName = card.querySelector('.n-input').value.trim();
-        const newQ = card.querySelector('.q-input').value.trim();
-        const newA = card.querySelector('.a-input').value.trim();
-        const changed = (newName !== (station.name || '')) || (newQ !== station.question) || (newA !== station.answer);
-        if (!changed) { showToast('內容未變動，無需儲存'); return; }
-        const msg =
-          `⚠️ 確定要變更【第 ${s.sid} 關】設定？\n\n` +
-          `名稱：${station.name || '(空)'}  →  ${newName || '(空)'}\n` +
-          `題目：${station.question}\n  →  ${newQ}\n` +
-          `答案：${station.answer}  →  ${newA}\n\n` +
-          `變更後，玩家手機若已快取舊版本，需重新整理才會同步。\n建議只在「活動開始前」修改。`;
-        if (!confirm(msg)) return;
-        station.name = newName;
-        station.question = newQ;
-        station.answer = newA;
-        saveStations(stations);
-        showToast(`✅ 第 ${s.sid} 關已儲存（本機）`);
-      };
-    }
+    new QRCode(el, { text: url, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M });
   }, 0);
   return card;
 }
