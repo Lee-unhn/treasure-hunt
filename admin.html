@@ -55,6 +55,30 @@
   .btn-treasure:hover { box-shadow: 0 12px 32px -8px rgba(245,158,11,.6); }
   .btn-treasure:active { transform: scale(0.97); }
   .btn-treasure:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* 列印用：6 張 QR / A4，無任何文字 */
+  .print-only { display: none; }
+  @media print {
+    @page { size: A4 portrait; margin: 8mm; }
+    body { margin: 0; padding: 0; background: #fff; }
+    body > *:not(.print-only) { display: none !important; }
+    .print-only { display: block !important; }
+    .print-page {
+      width: 194mm;       /* 210 - 2*8 */
+      height: 281mm;      /* 297 - 2*8 */
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: repeat(3, 1fr);
+      page-break-after: always;
+    }
+    .print-page:last-child { page-break-after: auto; }
+    .print-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .print-cell canvas { width: 80mm !important; height: 80mm !important; }
+  }
 </style>
 </head>
 <body>
@@ -539,16 +563,47 @@ function renderAdminStations(session) {
   wrap.className = 'space-y-3';
   wrap.innerHTML = `
     <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900">
-      ℹ️ 關卡 QR 已寫死、永不變動，<strong>列印一次貼到現場道具旁即可</strong>。<br>
+      ℹ️ 關卡 QR 已寫死、永不變動。<strong>列印格式：A4 直印、6 張 QR / 頁、純圖無文字</strong>。<br>
       要修改關卡名稱請改 <code class="bg-white px-1 rounded">index.html</code> 程式碼裡的 <code class="bg-white px-1 rounded">STATIONS</code> 後重新部署。<br>
       📌 玩家網址：<span class="font-mono break-all">${PLAYER_URL}</span>
     </div>
     <div class="flex items-center justify-between">
       <h2 class="text-xl font-black text-treasure-900">📷 關卡 QR Code（${STATIONS.length} 關）</h2>
-      <button id="print-all" class="bg-ink text-white rounded-xl px-4 py-2 text-sm font-bold">🖨 列印全部</button>
+      <button id="print-all" class="bg-ink text-white rounded-xl px-4 py-2 text-sm font-bold">🖨 列印全部（6 張/A4）</button>
     </div>
   `;
   STATIONS.forEach(s => wrap.appendChild(renderStationCard(s)));
+
+  // ─── 列印容器（純 QR、6 張/A4、無文字）─────────
+  const old = document.querySelector('.print-only');
+  if (old) old.remove();
+  const printRoot = document.createElement('div');
+  printRoot.className = 'print-only';
+  const PER_PAGE = 6;
+  for (let pageStart = 0; pageStart < STATIONS.length; pageStart += PER_PAGE) {
+    const page = document.createElement('div');
+    page.className = 'print-page';
+    for (let i = 0; i < PER_PAGE; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'print-cell';
+      const station = STATIONS[pageStart + i];
+      if (station) {
+        const qrDiv = document.createElement('div');
+        cell.appendChild(qrDiv);
+        setTimeout(() => {
+          new QRCode(qrDiv, {
+            text: generateStationQR(station.sid),
+            width: 320, height: 320,
+            correctLevel: QRCode.CorrectLevel.M
+          });
+        }, 0);
+      }
+      page.appendChild(cell);
+    }
+    printRoot.appendChild(page);
+  }
+  document.body.appendChild(printRoot);
+
   setTimeout(() => {
     wrap.querySelector('#print-all').onclick = () => window.print();
   }, 0);
