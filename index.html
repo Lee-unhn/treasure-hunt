@@ -192,11 +192,7 @@ function renderUserView() {
   wrap.className = 'space-y-4';
   const user = getCurrentUser();
   if (!user) { wrap.appendChild(renderUserLogin()); return wrap; }
-  if (!user.tier) {
-    wrap.appendChild(renderUserProfile(user));
-    wrap.appendChild(renderUserTierSelect(user));
-    return wrap;
-  }
+  // 卡別由服務員選 → 直接進「等候啟動」畫面
   if (!user.isActivated) {
     wrap.appendChild(renderUserProfile(user));
     wrap.appendChild(renderUserShowQR(user));
@@ -328,20 +324,19 @@ function renderUserTierSelect(user) {
 }
 
 function renderUserShowQR(user) {
-  // 註冊 QR：uid + 卡別 + 姓名（讓服務員掃了不用打字）
-  const payload = JSON.stringify({ uid: user.uid, t: parseInt(user.tier, 10), n: user.displayName });
+  // 註冊 QR：uid + 姓名（卡別由服務員啟動時決定）
+  const payload = JSON.stringify({ uid: user.uid, n: user.displayName });
   const wrap = document.createElement('div');
   wrap.className = 'glass rounded-3xl p-6 shadow text-center space-y-3';
   wrap.innerHTML = `
     <div class="text-4xl">📱</div>
     <h2 class="text-lg font-black text-treasure-900">請出示此 QR 給服務員</h2>
-    <p class="text-sm text-gray-600">服務員確認收費後掃描</p>
+    <p class="text-sm text-gray-600">付費後服務員會掃描啟動</p>
     <div class="bg-white rounded-2xl p-4 inline-block border-2 border-treasure-200 shadow-sm">
       <div id="register-qr" class="mx-auto"></div>
     </div>
     <div class="space-y-1">
       <p class="text-base font-bold text-treasure-900">${user.displayName}</p>
-      <p class="text-xs text-gray-500">想付的方案：<span class="font-bold text-treasure-700">$${user.tier} 卡</span></p>
       <p class="text-[10px] font-mono text-gray-400 break-all">${user.uid}</p>
     </div>
     <hr class="border-treasure-100">
@@ -350,7 +345,6 @@ function renderUserShowQR(user) {
       <p class="text-[11px] text-blue-700 mt-1">每 8 秒自動檢查；服務員啟動後立即進入遊戲</p>
     </div>
     <button id="check-now-btn" class="btn-treasure w-full py-3 text-sm">🔄 立即檢查</button>
-    <button id="change-tier" class="text-xs text-gray-400 hover:text-gray-600">換選其他卡別</button>
   `;
   setTimeout(() => {
     const el = wrap.querySelector('#register-qr');
@@ -395,11 +389,6 @@ function renderUserShowQR(user) {
     pollTimer = setInterval(() => tryActivate(false), 8000);
 
     wrap.querySelector('#check-now-btn').onclick = () => tryActivate(true);
-    wrap.querySelector('#change-tier').onclick = () => {
-      stopped = true;
-      if (pollTimer) clearInterval(pollTimer);
-      user.tier = null; saveDb(); render();
-    };
   }, 0);
   return wrap;
 }
