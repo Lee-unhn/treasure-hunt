@@ -328,7 +328,8 @@ function renderUserTierSelect(user) {
 }
 
 function renderUserShowQR(user) {
-  const payload = JSON.stringify({ uid: user.uid, t: parseInt(user.tier, 10) });
+  // 註冊 QR：uid + 卡別 + 姓名（讓服務員掃了不用打字）
+  const payload = JSON.stringify({ uid: user.uid, t: parseInt(user.tier, 10), n: user.displayName });
   const wrap = document.createElement('div');
   wrap.className = 'glass rounded-3xl p-6 shadow text-center space-y-3';
   wrap.innerHTML = `

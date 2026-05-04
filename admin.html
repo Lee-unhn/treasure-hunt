@@ -289,7 +289,15 @@ function renderAdminActivation(session) {
       const parsed = parseScannedQR(text);
       if (!parsed) return showToast('❌ QR 內容無法解析');
       uidInput.value = parsed.uid;
-      nameInput.focus();
+      // 從 QR 帶入玩家自填的姓名（服務員可手動修正）
+      if (parsed.n) {
+        nameInput.value = parsed.n;
+        showToast(`✅ 已帶入：${parsed.n}`);
+      } else {
+        nameInput.focus();
+      }
+      // 預先標示玩家想付的卡別
+      wrap.querySelectorAll('[id^=act-1],[id^=act-2]').forEach(b => b.classList.remove('ring-4', 'ring-treasure-300'));
       if (parsed.t) {
         const btn = wrap.querySelector('#act-' + parsed.t);
         if (btn) btn.classList.add('ring-4', 'ring-treasure-300');
