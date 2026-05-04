@@ -313,6 +313,7 @@ function actionStats(body) {
   const data = players.getDataRange().getValues();
   let total = 0, t100 = 0, t200 = 0, completed3 = 0, completed7 = 0,
       drew100 = 0, won200 = 0;
+  const recent100 = []; // {name, at}
   for (let i = 1; i < data.length; i++) {
     const r = data[i];
     if (!r[0]) continue;
@@ -322,24 +323,41 @@ function actionStats(body) {
     const pts = Number(r[5] || 0);
     if (pts >= 3) completed3++;
     if (pts >= 7) completed7++;
-    if (r[7]) drew100++;
+    if (r[7]) {
+      drew100++;
+      recent100.push({ name: String(r[1] || '?'), at: r[7] });
+    }
     if (r[8]) won200++;
   }
-  return { ok: true, total, t100, t200, completed3, completed7, drew100, won200 };
+  // 近 10 位 $100 抽獎中獎者，依時間倒序
+  recent100.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  const recent100Winners = recent100.slice(0, 10).map(w => w.name);
+  // 活動名稱
+  const settings = getSettings();
+  const eventName = String(settings['活動名稱'] || '尋寶獵人');
+  return { ok: true, total, t100, t200, completed3, completed7, drew100, won200, recent100Winners, eventName };
 }
 
 function actionLotteryLog(body) {
   authOf(body);
   const sheet = getLotteryLogSheet();
   const data = sheet.getDataRange().getValues();
+  // 建立 uid → name 對照
+  const players = getPlayersSheet().getDataRange().getValues();
+  const uidToName = {};
+  for (let i = 1; i < players.length; i++) {
+    if (players[i][0]) uidToName[players[i][0]] = String(players[i][1] || '');
+  }
   const rows = [];
   for (let i = Math.max(1, data.length - 50); i < data.length; i++) {
     const r = data[i];
     if (!r[0]) continue;
+    const uids = String(r[6] || '').split(',').map(s => s.trim()).filter(Boolean);
+    const winners = uids.map(uid => ({ uid, name: uidToName[uid] || '?' }));
     rows.push({
       round: r[0], at: r[1], by: r[2],
       eligibleSnapshot: r[3], excludedWon: r[4], drewCount: r[5],
-      winnerUids: r[6]
+      winners
     });
   }
   return { ok: true, rows };
