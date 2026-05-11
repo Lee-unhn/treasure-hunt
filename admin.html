@@ -56,16 +56,15 @@
   .btn-treasure:active { transform: scale(0.97); }
   .btn-treasure:disabled { opacity: .5; cursor: not-allowed; }
 
-  /* 列印用：每關 1 張 A4，含小標題 + 6 個同樣 QR */
+  /* 列印用：每關 1 張 A4，含小標題 + N 個同樣 QR */
   .print-only { display: none; }
   @media print {
-    @page { size: A4 portrait; margin: 8mm; }
+    @page { size: A4 portrait; margin: 5mm; }
     body { margin: 0; padding: 0; background: #fff; color: #000; }
     body > *:not(.print-only) { display: none !important; }
     .print-only { display: block !important; }
     .print-page {
-      width: 194mm;       /* 210 - 2*8 */
-      height: 281mm;      /* 297 - 2*8 */
+      width: 200mm;       /* 210 - 2*5 */
       display: flex;
       flex-direction: column;
       page-break-after: always;
@@ -73,33 +72,33 @@
     .print-page:last-child { page-break-after: auto; }
     .print-header {
       text-align: center;
-      font-size: 12pt;
+      font-size: 10pt;
       font-weight: bold;
-      padding: 2mm 0 4mm;
-      border-bottom: 1px dashed #999;
-      margin-bottom: 4mm;
-      flex-shrink: 0;
+      padding: 0 0 1mm;
+      margin: 0 0 2mm;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .print-grid {
-      flex: 1;
       display: grid;
     }
     .print-page.layout-6 .print-grid {
       grid-template-columns: repeat(2, 1fr);
-      grid-template-rows: repeat(3, 1fr);
+      gap: 2mm;
     }
     .print-page.layout-24 .print-grid {
       grid-template-columns: repeat(4, 1fr);
-      grid-template-rows: repeat(6, 1fr);
-      gap: 1mm;
+      gap: 1.5mm;
     }
     .print-cell {
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .print-page.layout-6 .print-cell canvas { width: 75mm !important; height: 75mm !important; }
-    .print-page.layout-24 .print-cell canvas { width: 38mm !important; height: 38mm !important; }
+    /* QR 尺寸略縮，確保標題 + 6 列 留得下空間 */
+    .print-page.layout-6 .print-cell canvas { width: 70mm !important; height: 70mm !important; }
+    .print-page.layout-24 .print-cell canvas { width: 34mm !important; height: 34mm !important; }
   }
 </style>
 </head>
