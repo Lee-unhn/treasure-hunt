@@ -432,6 +432,44 @@ function setMyPassword() {
 }
 
 /**
+ * ★★ 一鍵清除「活動資料」★★
+ *
+ * 清除：玩家清單、大獎抽獎記錄、啟動明細的資料列
+ * 保留：標題列、工作人員、設定
+ *
+ * 用法：上方下拉選 resetAllData → ▶ 執行
+ *      會在跑之前提示一行確認字串，避免誤觸。
+ *
+ * ⚠️ 不可復原，跑之前請確認 Sheet 已備份（檔案 → 製作副本）。
+ */
+function resetAllData() {
+  const CONFIRM = 'YES_RESET'; // 想真的執行的話，把下面的 mode 改成 CONFIRM
+  const mode = 'DRY_RUN';      // ← 改成 'YES_RESET' 才真的會清
+
+  const sheetsToClean = [SHEET_PLAYERS, SHEET_LOTTERY_LOG, SHEET_ACTIVATION_LOG];
+  const wb = ss();
+  const log = [];
+  sheetsToClean.forEach(name => {
+    const sheet = wb.getSheetByName(name);
+    if (!sheet) { log.push(`[skip] ${name} 不存在`); return; }
+    const last = sheet.getLastRow();
+    if (last <= 1) { log.push(`[skip] ${name} 已是空的`); return; }
+    if (mode === CONFIRM) {
+      sheet.getRange(2, 1, last - 1, sheet.getLastColumn()).clearContent();
+      log.push(`[✅ 清空] ${name}（清了 ${last - 1} 列）`);
+    } else {
+      log.push(`[DRY_RUN] ${name} 會清掉 ${last - 1} 列（標題留著）`);
+    }
+  });
+  if (mode !== CONFIRM) {
+    log.push('');
+    log.push('⚠️ 上方為「模擬執行」，沒有真的動 Sheet。');
+    log.push('要真的清除：請把函式裡的 mode 改成 \'YES_RESET\' 再執行一次。');
+  }
+  Logger.log(log.join('\n'));
+}
+
+/**
  * ★ 一鍵新增工作人員（含密碼）★
  *
  * 用法：
