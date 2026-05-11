@@ -59,46 +59,57 @@
   /* 列印用：每關 1 張 A4，含小標題 + N 個同樣 QR */
   .print-only { display: none; }
   @media print {
-    @page { size: A4 portrait; margin: 5mm; }
-    body { margin: 0; padding: 0; background: #fff; color: #000; }
+    @page { size: A4 portrait; margin: 10mm; }
+    html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; color: #000 !important; }
     body > *:not(.print-only) { display: none !important; }
     .print-only { display: block !important; }
     .print-page {
-      width: 200mm;       /* 210 - 2*5 */
-      display: flex;
-      flex-direction: column;
-      page-break-after: always;
+      width: 100% !important;
+      box-sizing: border-box;
+      margin: 0 !important;
+      padding: 0 !important;
+      page-break-after: always !important;
+      page-break-inside: avoid !important;
+      break-after: page;
+      break-inside: avoid;
     }
-    .print-page:last-child { page-break-after: auto; }
+    .print-page:last-child { page-break-after: auto !important; break-after: auto; }
     .print-header {
       text-align: center;
-      font-size: 10pt;
+      font-size: 11pt;
       font-weight: bold;
-      padding: 0 0 1mm;
-      margin: 0 0 2mm;
+      margin: 0 0 3mm !important;
+      padding: 0 !important;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .print-grid {
-      display: grid;
+      display: grid !important;
+      gap: 2mm !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
-    .print-page.layout-6 .print-grid {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 2mm;
-    }
-    .print-page.layout-24 .print-grid {
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1.5mm;
-    }
+    .print-page.layout-6 .print-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .print-page.layout-24 .print-grid { grid-template-columns: repeat(4, 1fr) !important; }
     .print-cell {
-      display: flex;
+      display: flex !important;
       align-items: center;
       justify-content: center;
+      margin: 0 !important;
+      padding: 0 !important;
     }
-    /* QR 尺寸略縮，確保標題 + 6 列 留得下空間 */
-    .print-page.layout-6 .print-cell canvas { width: 70mm !important; height: 70mm !important; }
-    .print-page.layout-24 .print-cell canvas { width: 34mm !important; height: 34mm !important; }
+    /* QR 容器：固定 mm 尺寸（壓過 Tailwind preflight 對 canvas/img 的 max-width:100% / height:auto）*/
+    .print-page.layout-6 .print-cell > div { width: 70mm !important; height: 70mm !important; }
+    .print-page.layout-24 .print-cell > div { width: 32mm !important; height: 32mm !important; }
+    .print-cell > div canvas,
+    .print-cell > div img {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: none !important;
+      max-height: none !important;
+      display: block !important;
+    }
   }
 </style>
 </head>
