@@ -72,10 +72,20 @@
   .btn-treasure:active { transform: scale(0.97); }
   .btn-treasure:disabled { opacity: .5; cursor: not-allowed; }
 
-  /* 蓋過 Tailwind preflight 對 canvas/img 的 max-width:100% / height:auto
-     —— 否則 QR 容器 inline-block 寬度 0 時，QR 會被縮成 0×0 */
+  /* QR 容器強制 220×220 + 子元素 canvas/img 也強制 220×220
+     —— 不靠父容器寬度，避免 Tailwind preflight 與 inline-block 雙重縮零 */
+  #register-qr, #claim-qr {
+    width: 220px !important;
+    height: 220px !important;
+    min-width: 220px !important;
+    min-height: 220px !important;
+    display: block !important;
+    margin: 0 auto !important;
+  }
   #register-qr canvas, #register-qr img,
   #claim-qr canvas, #claim-qr img {
+    width: 220px !important;
+    height: 220px !important;
     max-width: none !important;
     max-height: none !important;
     display: block !important;
@@ -128,7 +138,7 @@
 <div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-8 bg-ink/90 text-white text-base font-semibold px-6 py-3.5 rounded-full shadow-2xl z-50 animate-pop max-w-[90%] text-center"></div>
 
 <!-- 版本標記（方便確認快取是否更新到新版）-->
-<div class="fixed bottom-1 right-2 text-[10px] text-treasure-300 select-none pointer-events-none">v24</div>
+<div class="fixed bottom-1 right-2 text-[10px] text-treasure-300 select-none pointer-events-none">v25</div>
 
 <script>
 //========== 後端（只用於查詢自己的啟動狀態，唯讀）==========
@@ -220,6 +230,33 @@ function extractSidFromText(text) {
     if (n >= 1 && n <= TOTAL_STATIONS) return n;
   }
   return null;
+}
+
+//========== QR 渲染（qrcodejs 主、公開 API 備援）==========
+function renderQR(el, payload, size) {
+  if (!el) return;
+  size = size || 220;
+  el.innerHTML = '';
+  // 1️⃣ 先試本地 qrcodejs（速度快、離線可用）
+  let localOk = false;
+  try {
+    new QRCode(el, { text: payload, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+    localOk = true;
+  } catch (e) {
+    console.warn('qrcodejs failed:', e.message);
+  }
+  // 2️⃣ 500ms 後檢查，若沒渲染出來 → fallback 到 api.qrserver.com
+  setTimeout(() => {
+    const canvas = el.querySelector('canvas');
+    const img = el.querySelector('img');
+    const rendered = ((canvas && canvas.getBoundingClientRect().width > 20) ||
+                      (img && img.getBoundingClientRect().width > 20));
+    if (rendered) return;
+    console.warn('Local QR rendering failed, switching to remote API');
+    el.innerHTML = `<img alt="QR Code"
+      src="https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(payload)}"
+      style="width:${size}px;height:${size}px;display:block;max-width:none !important;" />`;
+  }, 500);
 }
 
 //========== Helpers ==========
@@ -395,8 +432,7 @@ function renderUserShowQR(user) {
   `;
   setTimeout(() => {
     const el = wrap.querySelector('#register-qr');
-    el.innerHTML = '';
-    new QRCode(el, { text: payload, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+    renderQR(el, payload, 220);
 
     const status = wrap.querySelector('#status-box');
     let pollTimer = null;
@@ -588,8 +624,7 @@ function renderUserClaim(user) {
   `;
   setTimeout(() => {
     const el = wrap.querySelector('#claim-qr');
-    el.innerHTML = '';
-    new QRCode(el, { text: payload, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+    renderQR(el, payload, 220);
   }, 0);
   return wrap;
 }
