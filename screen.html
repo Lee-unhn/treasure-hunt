@@ -58,6 +58,41 @@
     background-size: 200% 100%;
     animation: shimmer 3s ease-in-out infinite;
   }
+
+  /* ━━━ 開獎儀式動畫 ━━━ */
+  @keyframes fade-in-bg { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes title-pop {
+    0% { transform: scale(0) rotate(-15deg); opacity: 0; }
+    50% { transform: scale(1.15) rotate(3deg); opacity: 1; }
+    70% { transform: scale(0.95) rotate(-2deg); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  @keyframes count-pop {
+    0% { transform: scale(0.2); opacity: 0; filter: blur(20px); }
+    25% { transform: scale(1.4); opacity: 1; filter: blur(0); }
+    75% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+  }
+  @keyframes finale-burst {
+    0% { transform: scale(0) rotate(-30deg); opacity: 0; }
+    30% { transform: scale(1.6) rotate(5deg); opacity: 1; filter: drop-shadow(0 0 60px gold) brightness(1.8); }
+    60% { transform: scale(0.9) rotate(-2deg); filter: drop-shadow(0 0 30px gold); }
+    100% { transform: scale(1.1) rotate(0deg); opacity: 1; filter: drop-shadow(0 0 40px gold); }
+  }
+  @keyframes confetti-fall {
+    0% { transform: translateY(-100vh) rotate(0); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+  .anim-title-pop  { animation: title-pop 0.6s cubic-bezier(.34,1.56,.64,1) both; }
+  .anim-count-pop  { animation: count-pop 0.9s ease-out both; }
+  .anim-finale     { animation: finale-burst 0.8s cubic-bezier(.34,1.56,.64,1) both; }
+  .anim-fade-bg    { animation: fade-in-bg 0.5s ease both; }
+  .confetti {
+    position: absolute;
+    font-size: 2rem;
+    animation: confetti-fall linear forwards;
+    pointer-events: none;
+  }
 </style>
 </head>
 <body class="p-8">
@@ -87,6 +122,23 @@
 
   <div class="mt-4 text-center text-xs opacity-70">
     <p>本頁每 10 秒自動刷新 · 最近一次：<span id="updated-at">…</span></p>
+  </div>
+</div>
+
+<!-- ━━━ 開獎儀式 Overlay ━━━ -->
+<div id="ceremony" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center backdrop-blur-lg" style="background: radial-gradient(ellipse at center, rgba(120,53,15,0.95) 0%, rgba(0,0,0,0.98) 100%);">
+  <div id="ceremony-confetti" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+  <div class="relative z-10 text-center">
+    <div id="ceremony-title" class="hidden">
+      <div class="text-7xl mb-4">🎊 🏆 🎊</div>
+      <div class="text-6xl font-black drop-shadow-2xl bg-gradient-to-r from-yellow-200 via-yellow-400 to-orange-400 bg-clip-text text-transparent">大獎準備揭曉</div>
+      <p class="text-2xl mt-6 opacity-90">請屏息以待…</p>
+    </div>
+    <div id="ceremony-countdown" class="hidden font-black drop-shadow-2xl text-yellow-200" style="font-size:18rem; line-height:1;"></div>
+    <div id="ceremony-finale" class="hidden">
+      <div class="text-9xl mb-4">🎉 ✨ 🏆 ✨ 🎉</div>
+      <div class="text-7xl font-black drop-shadow-2xl bg-gradient-to-r from-yellow-200 via-yellow-400 to-orange-400 bg-clip-text text-transparent">揭 曉！</div>
+    </div>
   </div>
 </div>
 
@@ -125,8 +177,78 @@ const TAGLINES = [
 ];
 let lastWinnerCount = 0;
 let taglineIndex = Math.floor(Math.random() * TAGLINES.length);
+let lastSeenRoundKey = '';   // 最後一次看到的抽獎輪次（用來偵測「新一輪」）
+let isCeremonyRunning = false;
+
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function spawnConfetti(container, count) {
+  const emojis = ['🎉', '🎊', '✨', '⭐', '💎', '🏆'];
+  for (let i = 0; i < count; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.innerText = emojis[Math.floor(Math.random() * emojis.length)];
+    c.style.left = (Math.random() * 100) + '%';
+    c.style.fontSize = (1.5 + Math.random() * 2) + 'rem';
+    c.style.animationDuration = (2 + Math.random() * 2) + 's';
+    c.style.animationDelay = (Math.random() * 0.5) + 's';
+    container.appendChild(c);
+    setTimeout(() => c.remove(), 5000);
+  }
+}
+
+async function playCeremony() {
+  isCeremonyRunning = true;
+  const overlay = document.getElementById('ceremony');
+  const title = document.getElementById('ceremony-title');
+  const countdown = document.getElementById('ceremony-countdown');
+  const finale = document.getElementById('ceremony-finale');
+  const confettiBox = document.getElementById('ceremony-confetti');
+
+  // 顯示遮罩
+  overlay.classList.remove('hidden');
+  overlay.classList.add('anim-fade-bg');
+
+  // Step 1：標題出場 1.6 秒
+  title.classList.remove('hidden');
+  title.classList.add('anim-title-pop');
+  await wait(1600);
+  title.classList.add('hidden');
+  title.classList.remove('anim-title-pop');
+
+  // Step 2：倒數 5,4,3,2,1（每秒換一個，重新觸發動畫）
+  countdown.classList.remove('hidden');
+  for (let n = 5; n >= 1; n--) {
+    countdown.classList.remove('anim-count-pop');
+    void countdown.offsetWidth; // reflow 強制 restart 動畫
+    countdown.innerText = n;
+    countdown.classList.add('anim-count-pop');
+    await wait(900);
+  }
+  countdown.classList.add('hidden');
+
+  // Step 3：揭曉爆裂 + 彩帶
+  finale.classList.remove('hidden');
+  finale.classList.add('anim-finale');
+  spawnConfetti(confettiBox, 60);
+  await wait(1800);
+  finale.classList.add('hidden');
+  finale.classList.remove('anim-finale');
+
+  // 收尾：遮罩淡出
+  overlay.style.transition = 'opacity 0.5s';
+  overlay.style.opacity = '0';
+  await wait(500);
+  overlay.classList.add('hidden');
+  overlay.classList.remove('anim-fade-bg');
+  overlay.style.opacity = '';
+  overlay.style.transition = '';
+
+  isCeremonyRunning = false;
+}
 
 async function refresh() {
+  if (isCeremonyRunning) return; // 儀式進行中暫停刷新
   try {
     const stats = await call('stats');
     let poolCount = 0;
@@ -151,6 +273,15 @@ async function refresh() {
     const log = await call('lotteryLog');
     if (log.ok && log.rows && log.rows.length > 0) {
       const last = log.rows[log.rows.length - 1];
+      const roundKey = String(last.round || '') + '|' + String(last.at || '');
+
+      // 偵測：是否「新一輪」(非首次載入)
+      const isFreshDraw = lastSeenRoundKey && lastSeenRoundKey !== roundKey;
+      lastSeenRoundKey = roundKey;
+      if (isFreshDraw) {
+        await playCeremony();
+      }
+
       document.getElementById('round-title').innerText = '🏆 ' + last.round;
       document.getElementById('round-time').innerHTML = `
         <p class="text-xl font-bold">${new Date(last.at).toLocaleString('zh-TW', { hour12: false })}</p>
