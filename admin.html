@@ -332,10 +332,27 @@ function renderAdminLogin() {
 function parseScannedQR(raw) {
   raw = String(raw || '').trim();
   if (!raw) return null;
+  // 嘗試直接 JSON parse
   try {
     const obj = JSON.parse(raw);
-    if (obj && obj.uid) return obj;
+    if (obj && obj.uid) {
+      // 玩家端的姓名是 URL 編碼，解回中文
+      if (obj.n) { try { obj.n = decodeURIComponent(obj.n); } catch (e) {} }
+      return obj;
+    }
   } catch (e) {}
+  // 如果 raw 是亂碼（掃描端解錯字元集），嘗試用 Latin-1 → UTF-8 重解
+  try {
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i) & 0xFF;
+    const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    const obj = JSON.parse(decoded);
+    if (obj && obj.uid) {
+      if (obj.n) { try { obj.n = decodeURIComponent(obj.n); } catch (e) {} }
+      return obj;
+    }
+  } catch (e) {}
+  // 萬一只是純 UID 字串
   if (/^U-/.test(raw)) return { uid: raw };
   return null;
 }

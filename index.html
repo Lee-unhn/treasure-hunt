@@ -138,7 +138,7 @@
 <div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-8 bg-ink/90 text-white text-base font-semibold px-6 py-3.5 rounded-full shadow-2xl z-50 animate-pop max-w-[90%] text-center"></div>
 
 <!-- 版本標記（方便確認快取是否更新到新版）-->
-<div class="fixed bottom-1 right-2 text-[10px] text-treasure-300 select-none pointer-events-none">v27</div>
+<div class="fixed bottom-1 right-2 text-[10px] text-treasure-300 select-none pointer-events-none">v28</div>
 
 <script>
 //========== 後端（只用於查詢自己的啟動狀態，唯讀）==========
@@ -418,8 +418,8 @@ function renderUserTierSelect(user) {
 }
 
 function renderUserShowQR(user) {
-  // 註冊 QR：uid + 姓名（卡別由服務員啟動時決定）
-  const payload = JSON.stringify({ uid: user.uid, n: user.displayName });
+  // 註冊 QR：uid + 姓名（URL 編碼 → 整個 payload 只含 ASCII，避免 QR 掃描端字元集解碼錯誤）
+  const payload = JSON.stringify({ uid: user.uid, n: encodeURIComponent(user.displayName) });
   const wrap = document.createElement('div');
   wrap.className = 'glass rounded-3xl p-6 shadow text-center space-y-3';
   wrap.innerHTML = `
