@@ -112,17 +112,41 @@
       print-color-adjust: exact !important;
       -webkit-print-color-adjust: exact !important;
     }
-    /* QR 容器：固定 mm 尺寸（壓過 Tailwind preflight 對 canvas/img 的 max-width:100% / height:auto）*/
-    .print-page.layout-6 .print-cell > div { width: 58mm !important; height: 58mm !important; }
-    .print-page.layout-24 .print-cell > div { width: 26mm !important; height: 26mm !important; }
-    .print-cell > div canvas,
-    .print-cell > div img {
+    /* QR 容器：固定 mm 尺寸 + 鎖死大小 + 隱藏溢位 */
+    .print-cell > div {
+      position: relative !important;
+      overflow: hidden !important;
+      flex: none !important;
+      box-sizing: content-box !important;
+    }
+    .print-page.layout-6 .print-cell > div {
+      width: 56mm !important; height: 56mm !important;
+      min-width: 56mm !important; max-width: 56mm !important;
+      min-height: 56mm !important; max-height: 56mm !important;
+    }
+    .print-page.layout-24 .print-cell > div {
+      width: 24mm !important; height: 24mm !important;
+      min-width: 24mm !important; max-width: 24mm !important;
+      min-height: 24mm !important; max-height: 24mm !important;
+    }
+    /* canvas: absolute 定位 100% 填滿容器，徹底蓋過 qrcodejs 的內聯尺寸 */
+    .print-cell > div > canvas {
+      position: absolute !important;
+      top: 0 !important; left: 0 !important;
       width: 100% !important;
       height: 100% !important;
       max-width: none !important;
       max-height: none !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
       display: block !important;
+      box-sizing: border-box !important;
     }
+    /* qrcodejs 同時生成 img / table 作 fallback — 列印時隱藏避免重疊 */
+    .print-cell > div > img,
+    .print-cell > div > table { display: none !important; }
   }
 </style>
 </head>
