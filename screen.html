@@ -20,10 +20,31 @@
     0% { transform: translateX(0%) }
     100% { transform: translateX(-50%) }
   }
+  @keyframes glow {
+    0%, 100% { text-shadow: 0 0 20px rgba(255,255,255,.4), 0 0 40px rgba(252,211,77,.3); }
+    50% { text-shadow: 0 0 30px rgba(255,255,255,.8), 0 0 60px rgba(252,211,77,.9); }
+  }
+  @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  @keyframes fade-cycle {
+    0%, 30% { opacity: 1; transform: translateY(0); }
+    35%, 95% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 0; transform: translateY(-10px); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
   .float { animation: float 3s ease-in-out infinite; }
   .sparkle { animation: sparkle 2s ease-in-out infinite; }
   .winner-row { animation: slideIn 0.6s cubic-bezier(.34, 1.56, .64, 1) backwards; }
   .ticker-track { animation: scrollX 30s linear infinite; }
+  .glow-text { animation: glow 2.5s ease-in-out infinite; }
+  .spin-slow { animation: spin-slow 20s linear infinite; }
+  .shimmer {
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.4) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 3s ease-in-out infinite;
+  }
 </style>
 </head>
 <body class="p-8">
@@ -40,7 +61,7 @@
   <div id="stats" class="grid grid-cols-4 gap-4 mb-6"></div>
 
   <!-- Latest grand prize draw winners -->
-  <div class="bg-white/15 backdrop-blur-md rounded-3xl p-6 shadow-2xl border-2 border-white/30">
+  <div class="bg-white/15 backdrop-blur-md rounded-3xl p-6 shadow-2xl border-2 border-white/30 overflow-hidden relative">
     <div class="flex items-center justify-between mb-5">
       <div>
         <p class="text-sm opacity-80 uppercase tracking-widest">🏆 大獎中獎名單</p>
@@ -48,9 +69,7 @@
       </div>
       <div id="round-time" class="text-right text-sm opacity-80"></div>
     </div>
-    <div id="winners" class="space-y-2.5">
-      <p class="text-center opacity-60 py-12 text-2xl">尚未開獎，請主辦方在後台執行</p>
-    </div>
+    <div id="winners" class="space-y-2.5"></div>
   </div>
 
   <div class="mt-4 text-center text-xs opacity-70">
@@ -80,11 +99,27 @@ function maskName(name) {
   return arr[0] + arr[1] + '*'.repeat(Math.max(1, len - 2));
 }
 
+// 等候畫面的隨機標語（每次刷新換一個）
+const TAGLINES = [
+  '🏴‍☠️ 海盜寶藏，誰人會中？',
+  '🧳 大獎行李箱，正在打包中…',
+  '✨ $200 卡，完成 7 關，名額有限',
+  '💎 你已經在池內了嗎？',
+  '🎲 命運的輪盤，蓄勢待發',
+  '🗺️ 七關都解開了？來碰碰運氣！',
+  '🍀 機會均等，幸運不打折',
+  '⭐ 下一位中獎者，會是您嗎？'
+];
+let lastWinnerCount = 0;
+let taglineIndex = Math.floor(Math.random() * TAGLINES.length);
+
 async function refresh() {
   try {
     const stats = await call('stats');
+    let poolCount = 0;
     if (stats.ok) {
       if (stats.eventName) document.getElementById('event-title').innerText = stats.eventName;
+      poolCount = Math.max(0, Number(stats.completed7 || 0) - Number(stats.won200 || 0));
       document.getElementById('stats').innerHTML = `
         ${[
           ['🎫 已啟動', stats.total],
@@ -98,7 +133,6 @@ async function refresh() {
           </div>
         `).join('')}
       `;
-
     }
 
     const log = await call('lotteryLog');
@@ -122,6 +156,29 @@ async function refresh() {
           <span class="text-2xl">🏆</span>
         </div>
       `).join('');
+      lastWinnerCount = winners.length;
+    } else {
+      // 尚未開獎：顯示動畫等候畫面（不寫「請主辦方執行」這種內部訊息）
+      document.getElementById('round-title').innerText = '⏳ 等候開獎中…';
+      document.getElementById('round-time').innerHTML = '';
+      taglineIndex = (taglineIndex + 1) % TAGLINES.length;
+      const tagline = TAGLINES[taglineIndex];
+      document.getElementById('winners').innerHTML = `
+        <div class="text-center py-10 relative">
+          <div class="text-9xl mb-4 inline-block float drop-shadow-2xl">💎</div>
+          <div class="absolute top-12 left-1/4 text-4xl sparkle opacity-80">✨</div>
+          <div class="absolute top-20 right-1/4 text-3xl sparkle opacity-70" style="animation-delay:.5s">⭐</div>
+          <div class="absolute top-32 left-1/3 text-2xl sparkle opacity-60" style="animation-delay:1s">✨</div>
+          <h3 class="text-4xl font-black mt-4 glow-text">大獎即將揭曉</h3>
+          <p class="text-2xl mt-6 opacity-95">
+            目前
+            <strong class="text-yellow-200 text-5xl drop-shadow inline-block mx-2 align-middle">${poolCount}</strong>
+            位玩家進入大獎池
+          </p>
+          <p class="text-base mt-5 italic opacity-85 transition-all">${tagline}</p>
+        </div>
+      `;
+      lastWinnerCount = 0;
     }
     document.getElementById('updated-at').innerText = new Date().toLocaleTimeString('zh-TW');
   } catch (e) {
