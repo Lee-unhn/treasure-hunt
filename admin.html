@@ -83,15 +83,23 @@
     .print-grid {
       flex: 1;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+    }
+    .print-page.layout-6 .print-grid {
+      grid-template-columns: repeat(2, 1fr);
       grid-template-rows: repeat(3, 1fr);
+    }
+    .print-page.layout-24 .print-grid {
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(6, 1fr);
+      gap: 1mm;
     }
     .print-cell {
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .print-cell canvas { width: 75mm !important; height: 75mm !important; }
+    .print-page.layout-6 .print-cell canvas { width: 75mm !important; height: 75mm !important; }
+    .print-page.layout-24 .print-cell canvas { width: 38mm !important; height: 38mm !important; }
   }
 </style>
 </head>
@@ -577,55 +585,66 @@ function renderAdminStations(session) {
   wrap.className = 'space-y-3';
   wrap.innerHTML = `
     <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900">
-      ℹ️ 關卡 QR 已寫死、永不變動。<strong>列印格式：每關 1 張 A4（共 7 張）= 頁首小標題 + 6 個同樣 QR（總 42 個）</strong>。<br>
+      ℹ️ 關卡 QR 已寫死、永不變動。可選兩種列印密度：<strong>6 張/頁（大尺寸 75mm）</strong>或 <strong>24 張/頁（小尺寸 38mm）</strong>。每關 1 張 A4，共 7 張。<br>
       要修改關卡名稱請改 <code class="bg-white px-1 rounded">index.html</code> 程式碼裡的 <code class="bg-white px-1 rounded">STATIONS</code> 後重新部署。<br>
       📌 玩家網址：<span class="font-mono break-all">${PLAYER_URL}</span>
     </div>
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between flex-wrap gap-2">
       <h2 class="text-xl font-black text-treasure-900">📷 關卡 QR Code（${STATIONS.length} 關）</h2>
-      <button id="print-all" class="bg-ink text-white rounded-xl px-4 py-2 text-sm font-bold">🖨 列印（7 張/共 42 QR）</button>
+      <div class="flex gap-2">
+        <button id="print-6" class="bg-ink text-white rounded-xl px-3 py-2 text-xs font-bold">🖨 列印 6 張/頁（大）</button>
+        <button id="print-24" class="bg-ink text-white rounded-xl px-3 py-2 text-xs font-bold">🖨 列印 24 張/頁（小）</button>
+      </div>
     </div>
   `;
   STATIONS.forEach(s => wrap.appendChild(renderStationCard(s)));
 
-  // ─── 列印容器：每關 1 張 A4，頁首小標題 + 6 個同樣 QR ─────
-  const old = document.querySelector('.print-only');
-  if (old) old.remove();
-  const printRoot = document.createElement('div');
-  printRoot.className = 'print-only';
-  const COPIES = 6;
-  STATIONS.forEach(station => {
-    const page = document.createElement('div');
-    page.className = 'print-page';
+  // ─── 建立列印容器 ─────────
+  function buildPrintLayout(copiesPerPage) {
+    const old = document.querySelector('.print-only');
+    if (old) old.remove();
+    const printRoot = document.createElement('div');
+    printRoot.className = 'print-only';
+    STATIONS.forEach(station => {
+      const page = document.createElement('div');
+      page.className = `print-page layout-${copiesPerPage}`;
 
-    const header = document.createElement('div');
-    header.className = 'print-header';
-    header.innerText = `第 ${station.sid} 關 · ${station.name}`;
-    page.appendChild(header);
+      const header = document.createElement('div');
+      header.className = 'print-header';
+      header.innerText = `第 ${station.sid} 關 · ${station.name}`;
+      page.appendChild(header);
 
-    const grid = document.createElement('div');
-    grid.className = 'print-grid';
-    for (let i = 0; i < COPIES; i++) {
-      const cell = document.createElement('div');
-      cell.className = 'print-cell';
-      const qrDiv = document.createElement('div');
-      cell.appendChild(qrDiv);
-      setTimeout(() => {
-        new QRCode(qrDiv, {
-          text: generateStationQR(station.sid),
-          width: 320, height: 320,
-          correctLevel: QRCode.CorrectLevel.M
-        });
-      }, 0);
-      grid.appendChild(cell);
-    }
-    page.appendChild(grid);
-    printRoot.appendChild(page);
-  });
-  document.body.appendChild(printRoot);
+      const grid = document.createElement('div');
+      grid.className = 'print-grid';
+      for (let i = 0; i < copiesPerPage; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'print-cell';
+        const qrDiv = document.createElement('div');
+        cell.appendChild(qrDiv);
+        setTimeout(() => {
+          new QRCode(qrDiv, {
+            text: generateStationQR(station.sid),
+            width: 320, height: 320,
+            correctLevel: QRCode.CorrectLevel.M
+          });
+        }, 0);
+        grid.appendChild(cell);
+      }
+      page.appendChild(grid);
+      printRoot.appendChild(page);
+    });
+    document.body.appendChild(printRoot);
+  }
 
   setTimeout(() => {
-    wrap.querySelector('#print-all').onclick = () => window.print();
+    wrap.querySelector('#print-6').onclick = () => {
+      buildPrintLayout(6);
+      setTimeout(() => window.print(), 500);
+    };
+    wrap.querySelector('#print-24').onclick = () => {
+      buildPrintLayout(24);
+      setTimeout(() => window.print(), 500);
+    };
   }, 0);
   return wrap;
 }
