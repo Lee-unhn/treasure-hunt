@@ -97,11 +97,13 @@
       align-items: center;
       justify-content: center;
       margin: 0 !important;
-      padding: 0 !important;
+      padding: 3mm !important;
+      box-sizing: border-box !important;
+      border: 1px dashed #888 !important;     /* ← 剪裁虛線 */
     }
     /* QR 容器：固定 mm 尺寸（壓過 Tailwind preflight 對 canvas/img 的 max-width:100% / height:auto）*/
-    .print-page.layout-6 .print-cell > div { width: 70mm !important; height: 70mm !important; }
-    .print-page.layout-24 .print-cell > div { width: 32mm !important; height: 32mm !important; }
+    .print-page.layout-6 .print-cell > div { width: 60mm !important; height: 60mm !important; }
+    .print-page.layout-24 .print-cell > div { width: 28mm !important; height: 28mm !important; }
     .print-cell > div canvas,
     .print-cell > div img {
       width: 100% !important;
