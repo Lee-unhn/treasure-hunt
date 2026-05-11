@@ -200,7 +200,34 @@ function actionClaim(body) {
       lottery100: tier === '$100' && newDone >= basicTh && !data[7],
       grandPool: tier === '$200' && newDone >= fullTh && !data[8]
     };
-    return { ok: true, name, tier, points: newDone, eligibility, alreadyWon: !!data[8], wonRound: data[8] || null };
+
+    // ★★ 自動標記領獎（減少工作人員手動輸入）★★
+    let noteText = String(data[10] || '');
+    const previousNote = noteText;
+    const justMarked = [];
+    const timestamp = Utilities.formatDate(now, 'Asia/Taipei', 'HH:mm');
+
+    // 基礎獎：完成 ≥ 3 關就自動壓上
+    if (eligibility.basic && !/基礎獎/.test(noteText)) {
+      const tag = `已領基礎獎 ${timestamp}`;
+      noteText = noteText ? `${noteText}, ${tag}` : tag;
+      justMarked.push('基礎獎');
+    }
+    // 限量贈品：$200 卡 + 完成 7 關
+    if (tier === '$200' && newDone >= fullTh && !/限量贈品/.test(noteText)) {
+      const tag = `已領限量贈品 ${timestamp}`;
+      noteText = noteText ? `${noteText}, ${tag}` : tag;
+      justMarked.push('限量贈品');
+    }
+    if (justMarked.length > 0) {
+      players.getRange(row, 11).setValue(noteText); // K: 領獎/備註
+    }
+
+    return {
+      ok: true, name, tier, points: newDone, eligibility,
+      alreadyWon: !!data[8], wonRound: data[8] || null,
+      justMarked, previousNote
+    };
   } finally {
     lock.releaseLock();
   }

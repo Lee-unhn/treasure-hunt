@@ -515,11 +515,46 @@ function renderAdminVerify(session) {
         const res = await callApi('claim', { uid: parsed.uid, points: parsed.p || 0 });
         const e = res.eligibility;
         const tierNum = res.tier.replace('$','');
-        const items = [];
-        if (e.basic) items.push('🎁 基礎獎品');
-        if (e.lottery100) items.push('💰 $100 抽獎資格');
-        if (e.grandPool) items.push('🧳 已入大獎池（等候抽籤）');
-        if (res.alreadyWon) items.push(`🏆 ${res.wonRound} 中過大獎`);
+        const prev = String(res.previousNote || '');
+        const just = res.justMarked || [];
+
+        // 依「先前已領」/「剛剛標記」/「待領」分類顯示
+        const rows = [];
+        const tag = (icon, label, status) => {
+          const styleMap = {
+            'fresh':  'bg-green-50 border-green-400 text-green-800',
+            'before': 'bg-amber-50 border-amber-300 text-amber-800',
+            'pending':'bg-yellow-50 border-yellow-300 text-yellow-800',
+            'info':   'bg-blue-50 border-blue-300 text-blue-800'
+          };
+          const note = {
+            'fresh':  '✅ 系統剛剛已自動標記為「已領」→ 請發放',
+            'before': '⚠️ 先前已領（請勿重發）',
+            'pending':'→ 請發放',
+            'info':   ''
+          };
+          rows.push(`<div class="border-2 ${styleMap[status]} rounded-xl px-3 py-2.5 mb-1.5">
+            <p class="font-bold text-base">${icon} ${label}</p>
+            ${note[status] ? `<p class="text-xs mt-0.5">${note[status]}</p>` : ''}
+          </div>`);
+        };
+
+        if (e.basic) {
+          if (just.includes('基礎獎'))           tag('🎁','基礎獎品','fresh');
+          else if (/基礎獎/.test(prev))          tag('🎁','基礎獎品','before');
+          else                                    tag('🎁','基礎獎品','pending');
+        }
+        if (e.lottery100) {
+          tag('💰','可去抽 $100 獎','info');
+        }
+        // 限量贈品（$200 + 7 關）
+        if (tierNum === '200' && res.points >= 7) {
+          if (just.includes('限量贈品'))         tag('✨','限量贈品','fresh');
+          else if (/限量贈品/.test(prev))        tag('✨','限量贈品','before');
+          else                                    tag('✨','限量贈品','pending');
+        }
+        if (e.grandPool)                          tag('🧳','已入大獎池（等候抽籤）','info');
+        if (res.alreadyWon)                       tag('🏆',`${res.wonRound} 中過大獎`,'info');
 
         result.innerHTML = `
           <div class="bg-white border-2 border-green-400 rounded-2xl p-5 shadow space-y-3">
@@ -535,18 +570,22 @@ function renderAdminVerify(session) {
               </div>
             </div>
             <div class="border-t pt-2">
-              <p class="text-xs font-bold mb-2">應發獎項：</p>
-              ${items.length ? items.map(t => `<div class="bg-yellow-50 border border-yellow-300 rounded-xl px-3 py-2 text-sm font-semibold mb-1.5">${t}</div>`).join('') :
-                '<div class="text-sm text-gray-500 text-center py-2">尚未達領獎門檻（< 3 關）</div>'}
+              <p class="text-xs font-bold mb-2">應發獎項（系統會自動寫入 Sheet）：</p>
+              ${rows.length ? rows.join('') :
+                '<div class="text-sm text-gray-500 text-center py-2">尚未達領獎門檻（&lt; 3 關）</div>'}
             </div>
-            <button id="vfy-note" class="w-full bg-treasure-50 hover:bg-treasure-100 text-treasure-800 rounded-xl py-2 text-sm font-bold">✍️ 寫備註（如：基礎獎已領）</button>
+            ${prev ? `<p class="text-[10px] text-gray-500">📝 既有備註：${prev}</p>` : ''}
+            <button id="vfy-note" class="w-full bg-treasure-50 hover:bg-treasure-100 text-treasure-800 rounded-xl py-2 text-xs font-bold">✍️ 加額外備註</button>
           </div>
         `;
         wrap.querySelector('#vfy-note').onclick = async () => {
-          const note = prompt('輸入備註（會寫入 Sheet K 欄）：');
-          if (note == null) return;
-          try { await callApi('note', { uid: parsed.uid, note }); showToast('✅ 備註已存'); }
-          catch (er) { showToast('❌ ' + er.message); }
+          const note = prompt('額外備註（會「附加」到 K 欄）：');
+          if (note == null || !note.trim()) return;
+          try {
+            const newNote = prev ? `${prev}, ${note.trim()}` : note.trim();
+            await callApi('note', { uid: parsed.uid, note: newNote });
+            showToast('✅ 備註已存');
+          } catch (er) { showToast('❌ ' + er.message); }
         };
       } catch (e) {
         result.innerHTML = `
