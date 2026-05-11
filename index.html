@@ -153,7 +153,7 @@
 <div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-8 bg-ink/90 text-white text-base font-semibold px-6 py-3.5 rounded-full shadow-2xl z-50 animate-pop max-w-[90%] text-center"></div>
 
 <!-- 版本標記（方便確認快取是否更新到新版）-->
-<div class="fixed bottom-1 right-2 text-[10px] text-treasure-300 select-none pointer-events-none">v28</div>
+<div id="ver-badge" class="fixed bottom-1 right-2 text-[10px] text-treasure-300 select-none pointer-events-none">v…</div>
 
 <script>
 //========== 後端（只用於查詢自己的啟動狀態，唯讀）==========
@@ -754,6 +754,19 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW reg failed:', err));
   });
 }
+
+//========== 顯示真實 SW 版本 ==========
+(async function showVersion() {
+  const badge = document.getElementById('ver-badge');
+  if (!badge) return;
+  try {
+    // 直接抓 sw.js 內容，找 CACHE_VERSION
+    const res = await fetch('sw.js?_=' + Date.now(), { cache: 'no-store' });
+    const text = await res.text();
+    const m = text.match(/treasure-hunt-(v\d+)/);
+    if (m) badge.innerText = m[1];
+  } catch (e) { badge.innerText = 'v?'; }
+})();
 </script>
 </body>
 </html>
