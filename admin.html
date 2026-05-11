@@ -86,29 +86,27 @@
     }
     .print-grid {
       display: grid !important;
+      gap: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
+      /* 外框 — 補上整個 grid 的最上方/最左方虛線 */
+      border-top: 0.5mm dashed #555 !important;
+      border-left: 0.5mm dashed #555 !important;
+      print-color-adjust: exact !important;
+      -webkit-print-color-adjust: exact !important;
     }
-    /* 行/列分開設 — 上下要明顯分隔 */
-    .print-page.layout-6 .print-grid {
-      grid-template-columns: repeat(2, 1fr) !important;
-      column-gap: 4mm !important;
-      row-gap: 6mm !important;
-    }
-    .print-page.layout-24 .print-grid {
-      grid-template-columns: repeat(4, 1fr) !important;
-      column-gap: 3mm !important;
-      row-gap: 4mm !important;
-    }
+    .print-page.layout-6 .print-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .print-page.layout-24 .print-grid { grid-template-columns: repeat(4, 1fr) !important; }
+    /* 每格只設「右邊 + 下邊」虛線 → 相鄰格共用同一條，整個 grid 任何位置都剛好只有 1 條線 */
     .print-cell {
       display: flex !important;
       align-items: center;
       justify-content: center;
       margin: 0 !important;
-      padding: 3mm !important;
+      padding: 4mm !important;
       box-sizing: border-box !important;
-      border: 0.5mm dashed #555 !important;   /* ← 加粗剪裁虛線（0.5mm 印出來明顯）*/
-      border-radius: 1.5mm;
+      border-right: 0.5mm dashed #555 !important;
+      border-bottom: 0.5mm dashed #555 !important;
       print-color-adjust: exact !important;
       -webkit-print-color-adjust: exact !important;
     }
