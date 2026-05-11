@@ -86,12 +86,20 @@
     }
     .print-grid {
       display: grid !important;
-      gap: 2mm !important;
       margin: 0 !important;
       padding: 0 !important;
     }
-    .print-page.layout-6 .print-grid { grid-template-columns: repeat(2, 1fr) !important; }
-    .print-page.layout-24 .print-grid { grid-template-columns: repeat(4, 1fr) !important; }
+    /* 行/列分開設 — 上下要明顯分隔 */
+    .print-page.layout-6 .print-grid {
+      grid-template-columns: repeat(2, 1fr) !important;
+      column-gap: 4mm !important;
+      row-gap: 6mm !important;
+    }
+    .print-page.layout-24 .print-grid {
+      grid-template-columns: repeat(4, 1fr) !important;
+      column-gap: 3mm !important;
+      row-gap: 4mm !important;
+    }
     .print-cell {
       display: flex !important;
       align-items: center;
@@ -99,11 +107,14 @@
       margin: 0 !important;
       padding: 3mm !important;
       box-sizing: border-box !important;
-      border: 1px dashed #888 !important;     /* ← 剪裁虛線 */
+      border: 0.5mm dashed #555 !important;   /* ← 加粗剪裁虛線（0.5mm 印出來明顯）*/
+      border-radius: 1.5mm;
+      print-color-adjust: exact !important;
+      -webkit-print-color-adjust: exact !important;
     }
     /* QR 容器：固定 mm 尺寸（壓過 Tailwind preflight 對 canvas/img 的 max-width:100% / height:auto）*/
-    .print-page.layout-6 .print-cell > div { width: 60mm !important; height: 60mm !important; }
-    .print-page.layout-24 .print-cell > div { width: 28mm !important; height: 28mm !important; }
+    .print-page.layout-6 .print-cell > div { width: 58mm !important; height: 58mm !important; }
+    .print-page.layout-24 .print-cell > div { width: 26mm !important; height: 26mm !important; }
     .print-cell > div canvas,
     .print-cell > div img {
       width: 100% !important;
