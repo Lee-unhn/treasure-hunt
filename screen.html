@@ -83,6 +83,13 @@
     0% { transform: translateY(-100vh) rotate(0); opacity: 1; }
     100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
   }
+  @keyframes pulse-scale {
+    0%, 100% { transform: scale(1) rotate(-10deg); }
+    25% { transform: scale(1.15) rotate(0deg); }
+    50% { transform: scale(1) rotate(10deg); }
+    75% { transform: scale(1.15) rotate(0deg); }
+  }
+  .pulse-scale { animation: pulse-scale 0.5s ease-in-out infinite; }
   .anim-title-pop  { animation: title-pop 0.6s cubic-bezier(.34,1.56,.64,1) both; }
   .anim-count-pop  { animation: count-pop 0.9s ease-out both; }
   .anim-finale     { animation: finale-burst 0.8s cubic-bezier(.34,1.56,.64,1) both; }
@@ -126,19 +133,29 @@
   </div>
 </div>
 
-<!-- ━━━ 開獎儀式 Overlay ━━━ -->
+<!-- ━━━ 開獎儀式 Overlay（~16 秒，台灣彩券風）━━━ -->
 <div id="ceremony" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center backdrop-blur-lg" style="background: radial-gradient(ellipse at center, rgba(120,53,15,0.95) 0%, rgba(0,0,0,0.98) 100%);">
   <div id="ceremony-confetti" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
   <div class="relative z-10 text-center">
+    <!-- Phase 1: 標題 -->
     <div id="ceremony-title" class="hidden">
       <div class="text-7xl mb-4">🎊 🏆 🎊</div>
-      <div class="text-6xl font-black drop-shadow-2xl bg-gradient-to-r from-yellow-200 via-yellow-400 to-orange-400 bg-clip-text text-transparent">大獎準備揭曉</div>
+      <div class="text-6xl font-black drop-shadow-2xl bg-gradient-to-r from-yellow-200 via-yellow-400 to-orange-400 bg-clip-text text-transparent">大獎即將揭曉</div>
       <p class="text-2xl mt-6 opacity-90">請屏息以待…</p>
     </div>
-    <div id="ceremony-countdown" class="hidden font-black drop-shadow-2xl text-yellow-200" style="font-size:18rem; line-height:1;"></div>
+    <!-- Phase 2: 鼓聲鋪墊 -->
+    <div id="ceremony-drumroll" class="hidden">
+      <div class="text-8xl mb-4 inline-block pulse-scale">🎲</div>
+      <div id="ceremony-drumroll-text" class="text-4xl font-black drop-shadow-2xl text-yellow-100">命運即將揭曉</div>
+      <p class="text-xl mt-4 opacity-80 italic">所有人請就位…</p>
+    </div>
+    <!-- Phase 3: 倒數 -->
+    <div id="ceremony-countdown" class="hidden font-black drop-shadow-2xl text-yellow-200" style="font-size:20rem; line-height:1;"></div>
+    <!-- Phase 4: 揭曉 -->
     <div id="ceremony-finale" class="hidden">
       <div class="text-9xl mb-4">🎉 ✨ 🏆 ✨ 🎉</div>
       <div class="text-7xl font-black drop-shadow-2xl bg-gradient-to-r from-yellow-200 via-yellow-400 to-orange-400 bg-clip-text text-transparent">揭 曉！</div>
+      <p class="text-2xl mt-6 opacity-95">恭喜中獎者！</p>
     </div>
   </div>
 </div>
@@ -205,45 +222,69 @@ function spawnConfetti(container, count) {
   }
 }
 
+const DRUMROLL_TEXTS = ['命運即將揭曉', '幸運之星，照耀誰？', '海盜寶藏即將易主', '萬眾矚目時刻'];
+
 async function playCeremony() {
   isCeremonyRunning = true;
   const overlay = document.getElementById('ceremony');
   const title = document.getElementById('ceremony-title');
+  const drumroll = document.getElementById('ceremony-drumroll');
+  const drumrollText = document.getElementById('ceremony-drumroll-text');
   const countdown = document.getElementById('ceremony-countdown');
   const finale = document.getElementById('ceremony-finale');
   const confettiBox = document.getElementById('ceremony-confetti');
 
+  // 全部先隱藏
+  [title, drumroll, countdown, finale].forEach(el => el.classList.add('hidden'));
+
   // 顯示遮罩
   overlay.classList.remove('hidden');
   overlay.classList.add('anim-fade-bg');
+  await wait(300);
 
-  // Step 1：標題出場 1.6 秒
+  // ─── Phase 1：標題出場（2.5 秒）───
   title.classList.remove('hidden');
   title.classList.add('anim-title-pop');
-  await wait(1600);
+  await wait(2500);
   title.classList.add('hidden');
   title.classList.remove('anim-title-pop');
 
-  // Step 2：倒數 5,4,3,2,1（每秒換一個，重新觸發動畫）
+  // ─── Phase 2：鼓聲鋪墊（2.5 秒，文字輪播）───
+  drumroll.classList.remove('hidden');
+  for (let i = 0; i < DRUMROLL_TEXTS.length; i++) {
+    drumrollText.style.opacity = '0';
+    await wait(150);
+    drumrollText.innerText = DRUMROLL_TEXTS[i];
+    drumrollText.style.opacity = '1';
+    await wait(550);
+  }
+  drumroll.classList.add('hidden');
+
+  // ─── Phase 3：倒數 5,4,3,2,1（每數 1.5 秒，共 7.5 秒）───
   countdown.classList.remove('hidden');
   for (let n = 5; n >= 1; n--) {
     countdown.classList.remove('anim-count-pop');
     void countdown.offsetWidth; // reflow 強制 restart 動畫
     countdown.innerText = n;
     countdown.classList.add('anim-count-pop');
-    await wait(900);
+    countdown.style.animationDuration = '1.5s';
+    await wait(1500);
   }
   countdown.classList.add('hidden');
+  countdown.style.animationDuration = '';
 
-  // Step 3：揭曉爆裂 + 彩帶
+  // ─── Phase 4：揭曉爆裂 + 彩帶（3 秒）───
   finale.classList.remove('hidden');
   finale.classList.add('anim-finale');
-  spawnConfetti(confettiBox, 60);
-  await wait(1800);
+  spawnConfetti(confettiBox, 80);
+  // 持續灑彩帶 2 秒
+  setTimeout(() => spawnConfetti(confettiBox, 40), 800);
+  setTimeout(() => spawnConfetti(confettiBox, 40), 1600);
+  await wait(3000);
   finale.classList.add('hidden');
   finale.classList.remove('anim-finale');
 
-  // 收尾：遮罩淡出
+  // 收尾：遮罩淡出（0.5 秒）
   overlay.style.transition = 'opacity 0.5s';
   overlay.style.opacity = '0';
   await wait(500);
@@ -253,6 +294,25 @@ async function playCeremony() {
   overlay.style.transition = '';
 
   isCeremonyRunning = false;
+}
+
+//========== 已演過的輪次（localStorage 持久化，避免刷新重播）==========
+const SHOWN_CEREMONY_KEY = 'shown_ceremony_rounds';
+function ceremonyAlreadyShown(roundKey) {
+  try {
+    const raw = localStorage.getItem(SHOWN_CEREMONY_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return arr.includes(roundKey);
+  } catch (e) { return false; }
+}
+function markCeremonyShown(roundKey) {
+  try {
+    const raw = localStorage.getItem(SHOWN_CEREMONY_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    if (!arr.includes(roundKey)) arr.push(roundKey);
+    if (arr.length > 20) arr.splice(0, arr.length - 20);
+    localStorage.setItem(SHOWN_CEREMONY_KEY, JSON.stringify(arr));
+  } catch (e) {}
 }
 
 async function refresh() {
@@ -284,13 +344,18 @@ async function refresh() {
       const roundKey = String(last.round || '') + '|' + String(last.at || '');
       const roundCount = log.rows.length;
 
-      // 雙保險偵測：①輪次數增加 ②or 最末輪 key 變了（首次載入不算）
-      const isFreshDraw =
-        (lastSeenRoundCount > 0 && roundCount > lastSeenRoundCount) ||
-        (lastSeenRoundKey && lastSeenRoundKey !== roundKey);
+      // 觸發條件：
+      // ① 抽獎時間在「最近 5 分鐘」內 AND
+      // ② 此 roundKey 還沒演過儀式（localStorage 持久化）
+      // → 就算頁面剛開、剛抽完馬上開螢幕也會看到
+      let drawnAtMs = 0;
+      try { drawnAtMs = new Date(last.at).getTime(); } catch (e) {}
+      const isRecent = drawnAtMs > 0 && (Date.now() - drawnAtMs) < 5 * 60 * 1000;
+      const notShown = !ceremonyAlreadyShown(roundKey);
       lastSeenRoundKey = roundKey;
       lastSeenRoundCount = roundCount;
-      if (isFreshDraw) {
+      if (isRecent && notShown) {
+        markCeremonyShown(roundKey);
         await playCeremony();
       }
 
