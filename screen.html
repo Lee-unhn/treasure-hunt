@@ -11,7 +11,20 @@
     background: linear-gradient(135deg, #78350f 0%, #d97706 50%, #fbbf24 100%);
     min-height: 100vh;
     color: white;
-    overflow: hidden;
+    overflow-y: auto; /* 允許滾動，視窗太小時不卡 */
+  }
+  /* 縮小視窗時自動縮 padding 與字級，避免內容溢出又看不到下面 */
+  @media (max-height: 900px) {
+    body { padding: 1.5rem !important; }
+    .stats-card-value { font-size: 2.25rem !important; }
+    #event-title { font-size: 2.5rem !important; }
+    .gem-emoji { font-size: 6rem !important; }
+    .glow-text { font-size: 2rem !important; }
+  }
+  @media (max-height: 700px) {
+    body { padding: 1rem !important; }
+    .gem-emoji { font-size: 4.5rem !important; }
+    .glow-text { font-size: 1.5rem !important; }
   }
   @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
   @keyframes sparkle { 0%,100% { transform: scale(1) rotate(0deg); opacity: .7 } 50% { transform: scale(1.3) rotate(20deg); opacity: 1 } }
@@ -51,14 +64,14 @@
 
 <div class="max-w-6xl mx-auto">
   <!-- Header -->
-  <div class="text-center mb-8">
-    <div class="text-7xl mb-2 float inline-block">🏴‍☠️</div>
-    <h1 id="event-title" class="text-5xl font-black drop-shadow-lg">尋寶獵人</h1>
-    <p class="text-lg mt-2 opacity-90">Treasure Hunt — 即時抽獎大螢幕</p>
+  <div class="text-center mb-5">
+    <div class="text-6xl mb-1 float inline-block">🏴‍☠️</div>
+    <h1 id="event-title" class="text-4xl font-black drop-shadow-lg">尋寶獵人</h1>
+    <p class="text-base mt-1 opacity-90">Treasure Hunt — 即時抽獎大螢幕</p>
   </div>
 
   <!-- Stats row -->
-  <div id="stats" class="grid grid-cols-4 gap-4 mb-6"></div>
+  <div id="stats" class="grid grid-cols-4 gap-3 mb-4"></div>
 
   <!-- Latest grand prize draw winners -->
   <div class="bg-white/15 backdrop-blur-md rounded-3xl p-6 shadow-2xl border-2 border-white/30 overflow-hidden relative">
@@ -129,7 +142,7 @@ async function refresh() {
         ].map(([k, v]) => `
           <div class="bg-white/10 backdrop-blur rounded-2xl p-4 text-center border border-white/20">
             <p class="text-xs opacity-80">${k}</p>
-            <p class="text-4xl font-black mt-1 drop-shadow">${v}</p>
+            <p class="stats-card-value text-4xl font-black mt-1 drop-shadow">${v}</p>
           </div>
         `).join('')}
       `;
@@ -164,18 +177,18 @@ async function refresh() {
       taglineIndex = (taglineIndex + 1) % TAGLINES.length;
       const tagline = TAGLINES[taglineIndex];
       document.getElementById('winners').innerHTML = `
-        <div class="text-center py-10 relative">
-          <div class="text-9xl mb-4 inline-block float drop-shadow-2xl">💎</div>
-          <div class="absolute top-12 left-1/4 text-4xl sparkle opacity-80">✨</div>
-          <div class="absolute top-20 right-1/4 text-3xl sparkle opacity-70" style="animation-delay:.5s">⭐</div>
-          <div class="absolute top-32 left-1/3 text-2xl sparkle opacity-60" style="animation-delay:1s">✨</div>
-          <h3 class="text-4xl font-black mt-4 glow-text">大獎即將揭曉</h3>
-          <p class="text-2xl mt-6 opacity-95">
+        <div class="text-center py-6 relative">
+          <div class="gem-emoji text-8xl mb-2 inline-block float drop-shadow-2xl">💎</div>
+          <div class="absolute top-6 left-1/4 text-3xl sparkle opacity-80">✨</div>
+          <div class="absolute top-14 right-1/4 text-2xl sparkle opacity-70" style="animation-delay:.5s">⭐</div>
+          <div class="absolute top-24 left-1/3 text-xl sparkle opacity-60" style="animation-delay:1s">✨</div>
+          <h3 class="text-3xl font-black mt-2 glow-text">大獎即將揭曉</h3>
+          <p class="text-xl mt-4 opacity-95">
             目前
-            <strong class="text-yellow-200 text-5xl drop-shadow inline-block mx-2 align-middle">${poolCount}</strong>
+            <strong class="text-yellow-200 text-4xl drop-shadow inline-block mx-2 align-middle">${poolCount}</strong>
             位玩家進入大獎池
           </p>
-          <p class="text-base mt-5 italic opacity-85 transition-all">${tagline}</p>
+          <p class="text-sm mt-4 italic opacity-85 transition-all">${tagline}</p>
         </div>
       `;
       lastWinnerCount = 0;
