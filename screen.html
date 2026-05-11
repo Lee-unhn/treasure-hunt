@@ -120,8 +120,9 @@
     <div id="winners" class="space-y-2.5"></div>
   </div>
 
-  <div class="mt-4 text-center text-xs opacity-70">
+  <div class="mt-4 text-center text-xs opacity-70 space-y-1">
     <p>本頁每 10 秒自動刷新 · 最近一次：<span id="updated-at">…</span></p>
+    <p class="opacity-50">按 <kbd class="px-1.5 py-0.5 bg-white/20 rounded text-[10px]">T</kbd> 預演開獎動畫</p>
   </div>
 </div>
 
@@ -177,8 +178,15 @@ const TAGLINES = [
 ];
 let lastWinnerCount = 0;
 let taglineIndex = Math.floor(Math.random() * TAGLINES.length);
-let lastSeenRoundKey = '';   // 最後一次看到的抽獎輪次（用來偵測「新一輪」）
+let lastSeenRoundKey = '';   // 最後一次看到的抽獎輪次
+let lastSeenRoundCount = 0;  // 最後一次看到的總輪次數（雙保險偵測「新一輪」）
 let isCeremonyRunning = false;
+
+// 鍵盤快捷鍵：T = 預演開獎動畫
+document.addEventListener('keydown', (e) => {
+  if (isCeremonyRunning) return;
+  if (e.key === 't' || e.key === 'T') playCeremony();
+});
 
 function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -274,10 +282,14 @@ async function refresh() {
     if (log.ok && log.rows && log.rows.length > 0) {
       const last = log.rows[log.rows.length - 1];
       const roundKey = String(last.round || '') + '|' + String(last.at || '');
+      const roundCount = log.rows.length;
 
-      // 偵測：是否「新一輪」(非首次載入)
-      const isFreshDraw = lastSeenRoundKey && lastSeenRoundKey !== roundKey;
+      // 雙保險偵測：①輪次數增加 ②or 最末輪 key 變了（首次載入不算）
+      const isFreshDraw =
+        (lastSeenRoundCount > 0 && roundCount > lastSeenRoundCount) ||
+        (lastSeenRoundKey && lastSeenRoundKey !== roundKey);
       lastSeenRoundKey = roundKey;
+      lastSeenRoundCount = roundCount;
       if (isFreshDraw) {
         await playCeremony();
       }
