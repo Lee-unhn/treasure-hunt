@@ -72,8 +72,7 @@
   .btn-treasure:active { transform: scale(0.97); }
   .btn-treasure:disabled { opacity: .5; cursor: not-allowed; }
 
-  /* QR 容器強制 220×220 + 子元素 canvas/img 也強制 220×220
-     —— 不靠父容器寬度，避免 Tailwind preflight 與 inline-block 雙重縮零 */
+  /* QR 容器：固定 220×220 + overflow hidden 確保視覺不溢出 */
   #register-qr, #claim-qr {
     width: 220px !important;
     height: 220px !important;
@@ -81,13 +80,29 @@
     min-height: 220px !important;
     display: block !important;
     margin: 0 auto !important;
+    position: relative;
+    overflow: hidden !important;
   }
-  #register-qr canvas, #register-qr img,
-  #claim-qr canvas, #claim-qr img {
+  /* canvas（qrcodejs 主輸出）滿版顯示 */
+  #register-qr canvas, #claim-qr canvas {
     width: 220px !important;
     height: 220px !important;
     max-width: none !important;
     max-height: none !important;
+    display: block !important;
+  }
+  /* qrcodejs 同時建的 img / table（fallback）一律隱藏；
+     但我們手動注入的 API fallback img 帶 class .qr-api-fallback 不被擋 */
+  #register-qr img:not(.qr-api-fallback),
+  #claim-qr img:not(.qr-api-fallback),
+  #register-qr table,
+  #claim-qr table {
+    display: none !important;
+  }
+  .qr-api-fallback {
+    width: 220px !important;
+    height: 220px !important;
+    max-width: none !important;
     display: block !important;
   }
 </style>
@@ -249,23 +264,22 @@ function renderQR(el, payload, size) {
   size = size || 220;
   el.innerHTML = '';
   const utf8 = utf8ToBinaryString(payload);
-  // 1️⃣ 先試本地 qrcodejs（速度快、離線可用）
+  // 1️⃣ 先試本地 qrcodejs
   try {
     new QRCode(el, { text: utf8, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+    // qrcodejs 同時建 canvas + img + table 三種輸出 → 只保留 canvas
+    el.querySelectorAll('img, table').forEach(e => { e.style.display = 'none'; });
   } catch (e) {
     console.warn('qrcodejs failed:', e.message);
   }
-  // 2️⃣ 500ms 後檢查，若沒渲染出來 → fallback 到 api.qrserver.com
+  // 2️⃣ 500ms 後檢查，若 canvas 沒成功 → fallback 到公開 API（替換整個容器內容）
   setTimeout(() => {
     const canvas = el.querySelector('canvas');
-    const img = el.querySelector('img');
-    const rendered = ((canvas && canvas.getBoundingClientRect().width > 20) ||
-                      (img && img.getBoundingClientRect().width > 20));
-    if (rendered) return;
+    const ok = canvas && canvas.getBoundingClientRect().width > 20;
+    if (ok) return;
     console.warn('Local QR rendering failed, switching to remote API');
-    el.innerHTML = `<img alt="QR Code"
-      src="https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(payload)}"
-      style="width:${size}px;height:${size}px;display:block;max-width:none !important;" />`;
+    el.innerHTML = `<img class="qr-api-fallback" alt="QR Code"
+      src="https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(payload)}" />`;
   }, 500);
 }
 
