@@ -222,7 +222,7 @@ function spawnConfetti(container, count) {
   }
 }
 
-const DRUMROLL_TEXTS = ['命運即將揭曉', '幸運之星，照耀誰？', '海盜寶藏即將易主', '萬眾矚目時刻'];
+const DRUMROLL_TEXTS = ['命運即將揭曉', '萬眾矚目時刻'];
 
 async function playCeremony() {
   isCeremonyRunning = true;
@@ -249,26 +249,27 @@ async function playCeremony() {
   title.classList.add('hidden');
   title.classList.remove('anim-title-pop');
 
-  // ─── Phase 2：鼓聲鋪墊（2.5 秒，文字輪播）───
+  // ─── Phase 2：鼓聲鋪墊（每句停 2.2 秒）───
   drumroll.classList.remove('hidden');
+  drumrollText.style.transition = 'opacity 0.3s';
   for (let i = 0; i < DRUMROLL_TEXTS.length; i++) {
     drumrollText.style.opacity = '0';
-    await wait(150);
+    await wait(300);
     drumrollText.innerText = DRUMROLL_TEXTS[i];
     drumrollText.style.opacity = '1';
-    await wait(550);
+    await wait(1900);
   }
   drumroll.classList.add('hidden');
 
-  // ─── Phase 3：倒數 5,4,3,2,1（每數 1.5 秒，共 7.5 秒）───
+  // ─── Phase 3：倒數 3,2,1（每數 1 秒，共 3 秒）───
   countdown.classList.remove('hidden');
-  for (let n = 5; n >= 1; n--) {
+  for (let n = 3; n >= 1; n--) {
     countdown.classList.remove('anim-count-pop');
     void countdown.offsetWidth; // reflow 強制 restart 動畫
     countdown.innerText = n;
     countdown.classList.add('anim-count-pop');
-    countdown.style.animationDuration = '1.5s';
-    await wait(1500);
+    countdown.style.animationDuration = '1s';
+    await wait(1000);
   }
   countdown.classList.add('hidden');
   countdown.style.animationDuration = '';

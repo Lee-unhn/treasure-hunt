@@ -2,7 +2,7 @@
 // 策略：cache-first（離線優先），首次安裝預先抓所有靜態資源
 // 升級時 bump CACHE_VERSION 即可強制重新下載
 
-const CACHE_VERSION = 'treasure-hunt-v36';
+const CACHE_VERSION = 'treasure-hunt-v37';
 const ASSETS = [
   './',
   './index.html',
