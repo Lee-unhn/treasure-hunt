@@ -1,106 +1,107 @@
-==============================================
-  🏴‍☠️  尋寶獵人 Treasure Hunt — 測試版
-==============================================
+# 尋寶獵人 Treasure Hunt
 
-【一、快速試玩（電腦版）】
+> 活動用 PWA：玩家掃 QR 收集 7 關寶藏 → 自動產生領獎憑證；後台一鍵核對、抽獎、匯出 CSV。
 
-★ macOS：
-  1. 將整個 app 資料夾放在桌面或任意位置
-  2. 雙擊「start.command」
-     若被 Gatekeeper 擋住，請按右鍵 → 打開 → 確認打開
-  3. 瀏覽器會自動跳出 → 直接開始試玩
+**Author**: [@Lee-unhn](https://github.com/Lee-unhn) · a2264563@gmail.com
 
-★ Windows：
-  1. 將整個 app 資料夾放在桌面或任意位置
-  2. 雙擊「start.bat」
-  3. 瀏覽器會自動跳出 → 直接開始試玩
+## 專案簡介 / Overview
 
-★ 結束：直接關掉 Terminal / cmd 視窗即可。
+尋寶獵人是一個給實體活動用的單頁 PWA：玩家輸入名字建立帳號 → 工作人員啟動（$100 / $200 卡別）→ 出現 7 格寶藏地圖，到各關位掃 QR、答題集點 → 達標自動產生領獎憑證 QR。內建後台分頁可掃啟動碼、重產站點 QR（防作弊換 hashKey）、編輯題目答案、驗證領獎、抽獎、看統計。Demo 階段資料只存 localStorage，正式活動可串雲端後端。離線可用（vendor 內建函式庫 + sw.js cache）。
 
+## 架構 / Architecture
 
-【二、安裝到手機（PWA — 體驗最佳）】
+```mermaid
+flowchart TD
+  PLAYER(["玩家手機 / 電腦"])
+  STAFF(["工作人員"])
+  INDEX["index.html\n主程式（玩家 + 後台分頁）"]
+  ADMIN["admin.html\n獨立管理畫面"]
+  SCREEN["screen.html\n投影 / 大螢幕顯示"]
+  MANIFEST["manifest.json\nPWA metadata"]
+  SW["sw.js\nService Worker · 離線快取"]
+  LS[("localStorage\n玩家 / 啟動 / 集點 / 領獎")]
+  QR["vendor/qrcode.min.js\n生 QR"]
+  SCAN["vendor/html5-qrcode.min.js\n掃 QR"]
+  TW["vendor/tailwind.min.js\nCSS"]
+  GS["backend.gs\n(可選) Google Apps Script"]
+  START["start.bat / start.command\n一鍵本機伺服器"]
 
-★ 前置：手機需與電腦在同一個 WiFi
-  1. 電腦先依「一」啟動伺服器
-  2. 查電腦的 IP（Mac 系統設定 → 網路；Win 命令列 ipconfig）
-     例如：192.168.1.50
-  3. 手機瀏覽器輸入：http://192.168.1.50:8765/index.html
-  4. 安裝到主畫面：
-     - iPhone Safari：分享 → 加到主畫面
-     - Android Chrome：右上角選單 → 安裝應用程式
-  5. 點主畫面圖示即啟動，外觀與原生 App 相同
+  PLAYER --> INDEX
+  STAFF --> INDEX
+  STAFF --> ADMIN
+  STAFF --> SCREEN
+  INDEX --> QR
+  INDEX --> SCAN
+  INDEX --> TW
+  INDEX --> LS
+  ADMIN --> LS
+  INDEX -. PWA install .-> MANIFEST
+  INDEX -. offline .-> SW
+  START --> INDEX
+  GS -. 雲端後端 (可選) .-> INDEX
+```
 
-⚠ 相機掃描需要 HTTPS。手機若需用相機掃 QR，建議：
-   - 直接在電腦試玩（localhost 例外允許相機）
-   - 或之後正式部署到 https:// 網址
+## 技術棧 / Tech Stack
 
+- 純前端 HTML5 + JS（無 framework）
+- Tailwind（`vendor/tailwind.min.js`，離線可用）
+- `html5-qrcode` 掃 QR、`qrcode.min.js` 生 QR
+- PWA：`manifest.json` + `sw.js`（service worker 離線快取）
+- localStorage 做資料持久化（Demo），多裝置同步可改接 `backend.gs`（Google Apps Script）
+- `start.bat` / `start.command` 各平台一鍵啟動本機 HTTP server（port 8765）
 
-【三、操作流程】
+## 主要檔案 / Key Files
 
-▼ 用戶端（玩家）：
-  1. 輸入名字 → 建立玩家
-  2. 出現註冊 QR + UID
-  3. 拿給工作人員啟動（$100 或 $200）
-  4. 啟動後出現 7 格寶藏地圖
-  5. 點關卡 → 輸入答案 → 集點
-  6. 達標後自動出現「領獎憑證 QR」
-  7. 領獎處出示 QR → 工作人員掃碼核對
+- `index.html` — 主程式，內含玩家流程 + 後台分頁
+- `admin.html` — 獨立管理畫面（可投放給工作人員）
+- `screen.html` — 大螢幕 / 投影顯示用
+- `backend.gs` — 可選的 Google Apps Script 後端（多裝置同步時用）
+- `manifest.json` + `sw.js` — PWA 與離線快取
+- `start.command` / `start.bat` — Mac / Windows 一鍵啟動本機伺服器
+- `vendor/` — 離線可用的第三方函式庫（html5-qrcode / qrcode / tailwind）
+- `SETUP.md` — 正式部署與後端串接說明
 
-▼ 後台（工作人員）：
-  上方切到「🛠 後台」分頁
+## 使用 / Usage
 
-  • 🎫 啟動：手動輸入或📷掃描玩家 QR → 選 $100 / $200
-  • 📷 站點 QR：取得每關 QR 印出貼現場
-       「重產 QR」可作弊防護（換新 hashKey）
-       可編輯每關題目與答案
-  • ✅ 領獎驗證：📷掃描玩家領獎 QR
-       自動顯示客人姓名、卡別、完成關卡、應發獎品
-  • 🎲 抽獎：$200 卡完成全 7 關者隨機抽獎
-       抽完可匯出 CSV
-  • 📊 統計：總用戶 / 啟動數 / 各關完成數
+### 一、快速試玩（電腦版）
 
+**macOS**：
+1. 將整個 app 資料夾放在桌面或任意位置
+2. 雙擊 `start.command`（被 Gatekeeper 擋就右鍵 → 打開 → 確認）
+3. 瀏覽器會自動跳出 → 直接開始試玩
 
-【四、預設題目（演示用，可在「站點 QR」改）】
+**Windows**：
+1. 將整個 app 資料夾放在桌面或任意位置
+2. 雙擊 `start.bat`
+3. 瀏覽器會自動跳出 → 直接開始試玩
 
-  關卡 1：旗子上的數字 → 88
-  關卡 2：木桶的繩子顏色 → 紅
-  關卡 3：寶箱旁的星星數 → 5
-  關卡 4：燈籠英文字 → L
-  關卡 5：小卡片的動物 → 龍
-  關卡 6：海盜旗圖案 → 骷髏
-  關卡 7：最後道具編號 → A007
+結束：直接關掉 Terminal / cmd 視窗即可。
 
-  答案模糊比對：大小寫、全形/半形、空白通通自動處理
+### 二、安裝到手機（PWA — 體驗最佳）
 
+前置：手機需與電腦在同一個 WiFi。
 
-【五、領獎門檻】
+1. 電腦先依上一節啟動伺服器
+2. 查電腦的 IP（Mac 系統設定 → 網路；Win 命令列 `ipconfig`）
+3. 手機瀏覽器輸入：`http://<電腦 IP>:8765/index.html`
+4. 安裝到主畫面：
+   - iPhone Safari：分享 → 加到主畫面
+   - Android Chrome：右上角選單 → 安裝應用程式
 
-  完成 3 關 → 🎁 基礎獎品（$100、$200 共通）
-  完成 7 關 → ✨ 限量贈品 + 🧳 行李箱抽獎（限 $200 卡）
+⚠ 相機掃描需要 HTTPS。手機要用相機掃 QR，請直接在電腦試玩（localhost 例外允許相機），或部署到 `https://` 網址。
 
+### 三、預設關卡與門檻
 
-【六、注意事項】
+- 7 關預設題目可在「📷 站點 QR」頁面編輯
+- 完成 3 關 → 🎁 基礎獎品（$100、$200 共通）
+- 完成 7 關 → ✨ 限量贈品 + 🧳 行李箱抽獎（限 $200 卡）
 
-  • 本版本資料只存在「裝置本機」（localStorage），不上雲。
-    多裝置不同步：玩家在 A 機建立的，B 機看不到。
-    Demo 階段請用「同一台裝置」操作雙方流程。
-  • 真實活動需多裝置同步時，可串接後端（Supabase / 雲端 DB）。
-  • 右下角紅色「🗑 清除全部」可重置所有資料（需確認）。
-  • 後台無密碼保護，正式上線前需加。
+### 四、注意事項
 
+- Demo 版資料只在 localStorage，**多裝置不同步**；正式活動請串 `backend.gs` 或其他雲端 DB
+- 後台無密碼保護，正式上線前需加
+- 右下角紅色「🗑 清除全部」可重置所有資料（需確認）
 
-【七、檔案結構】
+## License
 
-  app/
-   ├ index.html              主程式
-   ├ manifest.json           PWA 設定
-   ├ sw.js                   離線快取
-   ├ start.command           Mac 一鍵啟動
-   ├ start.bat               Windows 一鍵啟動
-   ├ vendor/                 函式庫（離線可用）
-   ├ icons/                  PWA 圖示
-   └ README.txt              本檔
-
-==============================================
-  問題回報：請聯繫開發團隊
-==============================================
+MIT。
