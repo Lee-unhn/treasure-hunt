@@ -183,7 +183,7 @@ const STATIONS = [
   { sid: 3, name: '某人沒寄出的信' },
   { sid: 4, name: '地下街廣播員的手稿' },
   { sid: 5, name: '台南阿嬤的菜市仔袋' },
-  { sid: 6, name: '夜奇鴨的羽毛' },
+  { sid: 6, name: '夜羽之謎' },
   { sid: 7, name: '時間膠囊' }
 ];
 
@@ -559,6 +559,15 @@ function renderUserMap(user) {
   wrap.className = 'space-y-3';
   const set = scannedSet(user.uid);
   wrap.innerHTML = `
+    <!-- 場地大地圖（點開新分頁可放大）-->
+    <div class="bg-white rounded-2xl p-2 shadow border border-treasure-200">
+      <a href="icons/treasure-map.png" target="_blank" rel="noopener" class="block">
+        <img src="icons/treasure-map.png" alt="活動場地地圖" class="w-full h-auto rounded-xl"
+             onerror="this.parentElement.parentElement.style.display='none'" />
+      </a>
+      <p class="text-center text-[10px] text-gray-500 mt-1">📍 場地地圖 · 點圖可放大查看</p>
+    </div>
+
     <div class="flex items-center px-1">
       <h2 class="text-sm font-extrabold text-treasure-900 tracking-wider">🗺️ 寶藏地圖</h2>
       <p class="ml-auto text-[11px] text-gray-500">完成 ${set.size} / ${TOTAL_STATIONS} 關</p>

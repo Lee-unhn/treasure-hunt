@@ -2,7 +2,7 @@
 // 策略：cache-first（離線優先），首次安裝預先抓所有靜態資源
 // 升級時 bump CACHE_VERSION 即可強制重新下載
 
-const CACHE_VERSION = 'treasure-hunt-v38';
+const CACHE_VERSION = 'treasure-hunt-v39';
 const ASSETS = [
   './',
   './index.html',
@@ -13,14 +13,19 @@ const ASSETS = [
   './vendor/html5-qrcode.min.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/icon-maskable-512.png'
+  './icons/icon-maskable-512.png',
+  './icons/treasure-map.png'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION)
-      .then(cache => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_VERSION).then(async cache => {
+      // 個別 add，任何一個 404 也不會卡住整個 install（例如玩家還沒上傳 treasure-map.png）
+      await Promise.all(ASSETS.map(url =>
+        cache.add(url).catch(err => console.warn('SW precache skip:', url, err.message))
+      ));
+      return self.skipWaiting();
+    })
   );
 });
 
