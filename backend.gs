@@ -113,9 +113,11 @@ function actionActivate(body) {
   const uid = String(body.uid || '').trim();
   const name = String(body.name || '').trim();
   const tier = String(body.tier || '').trim();
+  const invoiceNo = String(body.invoiceNo || '').trim();
   if (!uid) throw new Error('uid 必填');
   if (!name) throw new Error('姓名必填');
   if (tier !== '100' && tier !== '200') throw new Error('卡別需為 100 或 200');
+  if (!invoiceNo) throw new Error('發票號碼必填');
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -127,9 +129,10 @@ function actionActivate(body) {
       throw new Error(`此 UID 已啟動為 $${tierExisting} 卡（` + players.getRange(existing, 4).getValue() + '）');
     }
     const now = new Date();
-    players.appendRow([uid, name, '$' + tier, now, sess.n, '', '', '', '', '', '']);
+    // 第 12 欄為發票號碼（需先跑 addInvoiceColumn 一次性新增此欄）
+    players.appendRow([uid, name, '$' + tier, now, sess.n, '', '', '', '', '', '', invoiceNo]);
     getActivationLogSheet().appendRow([now, uid, name, '$' + tier, sess.n]);
-    return { ok: true, message: `已啟動：${name} ($${tier})` };
+    return { ok: true, message: `已啟動：${name} ($${tier}) · 發票 ${invoiceNo}` };
   } finally {
     lock.releaseLock();
   }
@@ -497,6 +500,29 @@ function resetAllData() {
 }
 
 /**
+ * ★ 一次性遷移：為既有的「玩家清單」分頁加上 L 欄「發票號碼」★
+ *
+ * 用法：上方下拉選 addInvoiceColumn → ▶ 執行
+ *      已執行過會自動跳過，不會覆蓋。
+ */
+function addInvoiceColumn() {
+  const sheet = getPlayersSheet();
+  if (!sheet) { Logger.log('❌ 找不到玩家清單分頁'); return; }
+  const headerCell = sheet.getRange(1, 12);
+  const existing = headerCell.getValue();
+  if (existing) {
+    Logger.log(`[skip] L1 已有值「${existing}」`);
+    return;
+  }
+  headerCell.setValue('發票號碼')
+    .setFontWeight('bold')
+    .setBackground('#fff8e6')
+    .setHorizontalAlignment('center');
+  sheet.setColumnWidth(12, 130);
+  Logger.log('✅ 已新增「發票號碼」欄到 L1');
+}
+
+/**
  * ★ 一鍵新增工作人員（含密碼）★
  *
  * 用法：
@@ -536,8 +562,8 @@ function setupSheets() {
       name: SHEET_PLAYERS,
       headers: ['UID', '姓名', '卡別', '啟動時間', '啟動服務員',
                 '完成關數', '完成時間', '$100抽獎時間',
-                '大獎中獎輪次', '大獎中獎時間', '領獎/備註'],
-      colWidths: [130, 100, 70, 145, 100, 80, 145, 145, 110, 145, 200]
+                '大獎中獎輪次', '大獎中獎時間', '領獎/備註', '發票號碼'],
+      colWidths: [130, 100, 70, 145, 100, 80, 145, 145, 110, 145, 200, 130]
     },
     {
       name: SHEET_LOTTERY_LOG,

@@ -374,6 +374,8 @@ function renderAdminActivation(session) {
     </div>
     <input id="act-name" placeholder="客人姓名"
       class="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-treasure-400" />
+    <input id="act-invoice" placeholder="🧾 發票號碼（必填，財務對帳用）"
+      class="w-full bg-white border-2 border-amber-300 rounded-xl px-3 py-2 focus:outline-none focus:border-amber-500 font-mono" />
     <div class="grid grid-cols-2 gap-3">
       <!-- 單一票價模式：隱藏原本 $100（限 3 關）按鈕；剩下的按鈕標籤改為 $100、內部 tier 仍送 '200' 以保留全 7 關 + 大獎抽獎權限 -->
       <button id="act-100" class="hidden bg-gradient-to-br from-gray-600 to-gray-800 text-white rounded-2xl py-4 font-bold">$100 啟動（限 3 關）</button>
@@ -384,6 +386,7 @@ function renderAdminActivation(session) {
   setTimeout(() => {
     const uidInput = wrap.querySelector('#act-uid');
     const nameInput = wrap.querySelector('#act-name');
+    const invoiceInput = wrap.querySelector('#act-invoice');
     const result = wrap.querySelector('#act-result');
 
     wrap.querySelector('#act-scan').onclick = () => openScanner((text) => {
@@ -408,15 +411,17 @@ function renderAdminActivation(session) {
     const activate = async (tier) => {
       const uid = uidInput.value.trim();
       const name = nameInput.value.trim();
+      const invoiceNo = invoiceInput.value.trim();
       if (!uid) return showToast('請輸入或掃描 UID');
       if (!name) return showToast('請輸入客人姓名');
+      if (!invoiceNo) { invoiceInput.focus(); return showToast('🧾 請輸入發票號碼'); }
       result.classList.add('hidden');
       try {
-        const res = await callApi('activate', { uid, name, tier });
+        const res = await callApi('activate', { uid, name, tier, invoiceNo });
         result.innerText = '✅ ' + res.message;
         result.className = 'text-sm text-center font-bold text-green-700 bg-green-50 rounded-xl py-2';
         result.classList.remove('hidden');
-        uidInput.value = ''; nameInput.value = '';
+        uidInput.value = ''; nameInput.value = ''; invoiceInput.value = '';
         wrap.querySelectorAll('[id^=act-1],[id^=act-2]').forEach(b => b.classList.remove('ring-4', 'ring-treasure-300'));
       } catch (e) {
         result.innerText = '❌ ' + e.message;
