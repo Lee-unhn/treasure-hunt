@@ -625,7 +625,7 @@ function renderUserClaim(user) {
   const labels = ['🎁 基礎獎品'];
   if (points >= PREMIUM_BONUS_THRESHOLD) {
     labels.push('✨ 限量贈品');
-    labels.push('🧳 行李箱大獎抽獎池');
+    labels.push('🧳 已入大獎抽籤池');
   }
 
   const payload = JSON.stringify({ v: 1, uid: user.uid, p: points });

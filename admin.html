@@ -249,10 +249,10 @@ function render() {
   tabsBar.className = 'glass rounded-2xl p-1.5 flex gap-1 text-sm overflow-x-auto';
   const tabs = [
     ['activation', '🎫 啟動'],
-    ['lottery100', '🎁 $100抽獎'],
+    ['lottery100', '🎁 過 3 關抽獎'],
     ['verify',     '✅ 領獎驗證'],
   ];
-  if (session.role === 'organizer') tabs.push(['draw200', '🎲 抽大獎']);
+  if (session.role === 'organizer') tabs.push(['draw200', '🎲 過 7 關大獎抽籤']);
   tabs.push(['stations', '📷 站點QR']);
   tabs.push(['stats',    '📊 統計']);
 
@@ -430,13 +430,13 @@ function renderAdminActivation(session) {
   return wrap;
 }
 
-//========== $100 即時抽獎 ==========
+//========== 過 3 關 即時抽獎 ==========
 function renderAdminLottery100(session) {
   const wrap = document.createElement('div');
   wrap.className = 'glass rounded-3xl p-5 shadow space-y-4';
   wrap.innerHTML = `
     <div>
-      <h2 class="text-xl font-black text-treasure-900">🎁 $100 即時抽獎</h2>
+      <h2 class="text-xl font-black text-treasure-900">🎁 過 3 關 即時抽獎</h2>
       <p class="text-sm text-gray-600 mt-1">掃描客人領獎 QR → 系統檢查資格 → 標記已抽</p>
     </div>
     <div class="flex gap-2">
@@ -546,7 +546,7 @@ function renderAdminVerify(session) {
           else                                    tag('🎁','基礎獎品','pending');
         }
         if (e.lottery100) {
-          tag('💰','可去抽 $100 獎','info');
+          tag('💰','可去抽過 3 關獎','info');
         }
         // 限量贈品（$200 + 7 關）
         if (tierNum === '200' && res.points >= 7) {
@@ -604,13 +604,13 @@ function renderAdminVerify(session) {
   return wrap;
 }
 
-//========== 抽大獎（organizer） ==========
+//========== 過 7 關大獎抽籤（organizer） ==========
 function renderAdminDraw200(session) {
   const wrap = document.createElement('div');
   wrap.className = 'glass rounded-3xl p-5 shadow space-y-4';
   wrap.innerHTML = `
     <div>
-      <h2 class="text-xl font-black text-treasure-900">🎲 $200 大獎抽籤</h2>
+      <h2 class="text-xl font-black text-treasure-900">🎲 過 7 關大獎抽籤</h2>
       <p class="text-sm text-gray-600 mt-1">主辦方限定。已中獎者自動排除。</p>
     </div>
     <div id="d200-pool" class="text-center bg-treasure-50 rounded-2xl p-3">
