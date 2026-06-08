@@ -375,8 +375,9 @@ function renderAdminActivation(session) {
     <input id="act-name" placeholder="客人姓名"
       class="w-full bg-white border-2 border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-treasure-400" />
     <div class="grid grid-cols-2 gap-3">
-      <button id="act-100" class="bg-gradient-to-br from-gray-600 to-gray-800 text-white rounded-2xl py-4 font-bold">$100 啟動</button>
-      <button id="act-200" class="bg-gradient-to-br from-yellow-400 to-amber-500 text-black rounded-2xl py-4 font-bold">$200 啟動</button>
+      <!-- 單一票價模式：隱藏原本 $100（限 3 關）按鈕；剩下的按鈕標籤改為 $100、內部 tier 仍送 '200' 以保留全 7 關 + 大獎抽獎權限 -->
+      <button id="act-100" class="hidden bg-gradient-to-br from-gray-600 to-gray-800 text-white rounded-2xl py-4 font-bold">$100 啟動（限 3 關）</button>
+      <button id="act-200" class="col-span-2 bg-gradient-to-br from-yellow-400 to-amber-500 text-black rounded-2xl py-4 font-bold text-lg">$100 啟動</button>
     </div>
     <p id="act-result" class="hidden text-sm text-center font-bold"></p>
   `;
@@ -565,7 +566,7 @@ function renderAdminVerify(session) {
               <div class="w-16 h-16 rounded-full bg-treasure-100 flex items-center justify-center text-3xl ring-4 ring-green-200">👤</div>
               <div class="flex-1 min-w-0">
                 <p class="text-2xl font-black text-treasure-900 truncate">${res.name}</p>
-                <p class="text-xs"><span class="${tierNum==='200'?'bg-yellow-300':'bg-gray-300'} px-2 py-0.5 rounded-full font-bold">$${tierNum} 卡</span> · ${res.points}/7 關</p>
+                <p class="text-xs"><span class="bg-green-300 px-2 py-0.5 rounded-full font-bold">已付款</span> · ${res.points}/7 關</p>
                 <p class="font-mono text-[10px] text-gray-400 truncate mt-1">${parsed.uid}</p>
               </div>
             </div>

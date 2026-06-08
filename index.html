@@ -339,7 +339,7 @@ function renderUserLogin() {
               <button data-uid="${u.uid}" class="switch-user w-full text-left bg-white hover:bg-treasure-50 rounded-xl px-3 py-2 flex items-center gap-2 transition">
                 <span class="text-xl">👤</span>
                 <span class="flex-1 font-semibold truncate">${u.displayName}</span>
-                <span class="text-xs ${u.tier==='200' ? 'bg-yellow-300' : u.tier==='100' ? 'bg-gray-300' : 'bg-gray-100'} px-2 py-0.5 rounded-full font-bold">${u.tier ? '$'+u.tier : '未啟動'}</span>
+                <span class="text-xs ${u.isActivated ? 'bg-green-300' : 'bg-gray-100'} px-2 py-0.5 rounded-full font-bold">${u.isActivated ? '已付款' : '未啟動'}</span>
                 <span class="text-xs text-gray-500">${pointsOf(u.uid)} 點</span>
               </button>
             `).join('')}
@@ -374,7 +374,7 @@ function renderUserProfile(user) {
   const wrap = document.createElement('div');
   wrap.className = 'glass rounded-3xl p-4 shadow flex items-center gap-3';
   const tierBadge = user.isActivated
-    ? `<span class="text-[11px] ${user.tier==='200' ? 'bg-gradient-to-r from-yellow-300 to-amber-400' : 'bg-gradient-to-r from-gray-300 to-gray-400'} px-2.5 py-0.5 rounded-full font-bold">$${user.tier} 卡</span>`
+    ? `<span class="text-[11px] bg-gradient-to-r from-green-300 to-emerald-400 px-2.5 py-0.5 rounded-full font-bold">已付款</span>`
     : `<span class="text-[11px] bg-gray-200 px-2.5 py-0.5 rounded-full font-semibold">等候啟動</span>`;
   wrap.innerHTML = `
     <div class="w-12 h-12 rounded-full bg-treasure-100 flex items-center justify-center text-2xl ring-2 ring-treasure-200">👤</div>
@@ -503,13 +503,11 @@ function renderUserShowQR(user) {
 function renderUserWelcome(user) {
   const wrap = document.createElement('div');
   wrap.className = 'rounded-3xl p-5 shadow text-white relative overflow-hidden';
-  wrap.style.background = user.tier === '200'
-    ? 'linear-gradient(135deg, #fbbf24, #d97706 60%, #78350f)'
-    : 'linear-gradient(135deg, #6b7280, #374151 70%, #111827)';
+  wrap.style.background = 'linear-gradient(135deg, #fbbf24, #d97706 60%, #78350f)';
   wrap.innerHTML = `
     <div class="text-3xl mb-1">🏴‍☠️</div>
     <h3 class="text-xl font-black">寶藏獵人歡迎參賽！</h3>
-    <p class="text-sm mt-1 opacity-95">您是 <strong>$${user.tier} 卡</strong>${user.tier === '200' ? '，可玩全 7 關' : '，完成 3 關即可抽獎'}</p>
+    <p class="text-sm mt-1 opacity-95">✅ 已付款，可玩全 7 關</p>
     <button id="show-my-qr" class="mt-3 bg-white/25 hover:bg-white/40 backdrop-blur rounded-full px-3 py-1 text-xs font-bold transition">📱 再叫出我的 QR</button>
   `;
   setTimeout(() => {
@@ -529,15 +527,11 @@ function renderUserPoints(user) {
   wrap.style.background = 'linear-gradient(135deg, #ffb14d, #d97706 60%, #92400e)';
   let msg;
   if (points >= PREMIUM_BONUS_THRESHOLD) {
-    msg = user.tier === '200'
-      ? '🏆 完成全部 7 關！已入大獎池，等候下一輪抽獎'
-      : '🎉 完成全部 7 關！可去櫃台抽 $100 獎';
+    msg = '🏆 完成全部 7 關！已入大獎池，等候開獎';
   } else if (points >= BASIC_THRESHOLD) {
-    msg = user.tier === '200'
-      ? `✅ 達 ${BASIC_THRESHOLD} 關可去抽 $100 獎；再 ${PREMIUM_BONUS_THRESHOLD - points} 關進大獎池`
-      : `🎉 達標！可去櫃台抽 $100 獎`;
+    msg = `✅ 達 ${BASIC_THRESHOLD} 關可去櫃台領基礎獎；再 ${PREMIUM_BONUS_THRESHOLD - points} 關進大獎池`;
   } else {
-    msg = `再完成 ${BASIC_THRESHOLD - points} 關即可去櫃台抽獎`;
+    msg = `再完成 ${BASIC_THRESHOLD - points} 關即可去櫃台領獎`;
   }
   wrap.innerHTML = `
     <div class="absolute -top-6 -right-6 text-[9rem] opacity-20 select-none">💰</div>
@@ -629,7 +623,7 @@ function renderUserClaim(user) {
   if (points < BASIC_THRESHOLD) return document.createElement('div');
 
   const labels = ['🎁 基礎獎品'];
-  if (user.tier === '200' && points >= PREMIUM_BONUS_THRESHOLD) {
+  if (points >= PREMIUM_BONUS_THRESHOLD) {
     labels.push('✨ 限量贈品');
     labels.push('🧳 行李箱大獎抽獎池');
   }
@@ -643,7 +637,7 @@ function renderUserClaim(user) {
     <div class="bg-white rounded-2xl p-4 text-center border-2 border-treasure-200">
       <div id="claim-qr" class="mx-auto inline-block"></div>
       <p class="font-bold text-base text-treasure-900 mt-2">${user.displayName}</p>
-      <p class="text-xs text-treasure-700">$${user.tier} 卡 · 已完成 ${points} / ${TOTAL_STATIONS} 關</p>
+      <p class="text-xs text-treasure-700">✅ 已付款 · 已完成 ${points} / ${TOTAL_STATIONS} 關</p>
       <p class="font-mono text-[10px] text-gray-400 mt-1 break-all">${user.uid}</p>
     </div>
     <div class="mt-3">
